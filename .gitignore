@@ -1,0 +1,24 @@
+# IntelliJ
+.idea
+*.iml
+
+# Maven
+target
+project
+
+# Spark (local)
+metastore_db
+
+# Documentation (auto-generated files)
+docs/_site
+docs/.jekyll-metadata
+docs/.sass-cache
+docs/api
+docs-api/autogen
+docs-api/_build
+
+# Log files
+*.log
+
+# Platform specific - Mac OSX
+.DS_Store
