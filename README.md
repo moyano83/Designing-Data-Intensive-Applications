@@ -481,3 +481,282 @@ to cache the results of such functions. One way of creating such a cache is a _m
  some particular queries).
 
 ## Chapter 4: Encoding and Evolution<a name="Chapter4"></a>
+### Formats for Encoding Data
+Programs usually work with data in (at least) two different representations:
+
+    * In memory: optimized for efficient access and manipulation by the CPU (lists, hashmaps, sets...)
+    * Encoded in a particular sequence of bytes: There are no pointers (woldn't make sense), JSON, text...
+    
+The translation from the in-memory representation to a byte sequence is called encoding and the reverse is called 
+decoding.
+
+#### Language-Specific Formats
+Many libraries came with a built-in support for in-memory encoding-decoding, but at the cost of:
+
+    * Often, the encoding is tied to a particular programming language
+    * In order to restore data in the same object types, the decoding process needs to be able to instantiate 
+    arbitrary classes, which might lead to security vulnerabilities
+    * Versioning data can be a source of problems
+    * CPU efficiency can be a source of performance problems
+    
+#### JSON, XML, and Binary Variants
+JSON, XML, and CSV are textual formats, that comes with some remarkable problems:
+
+    * Lot of ambiguity around the encoding of numbers: XML doesn't distinguish between strings containing numbers and
+     numbers, and JSON can't specify the precission of numbers
+    * JSON and XML have good support for Unicode character strings, but they don’t support binary strings. These 
+    strings are usually encoded using Base64, which increases the data size
+    * There is optional schema support for XML and JSON, but it is complicated to implement
+    * CSV does not have any schema, up to the application to interpret the data. Additions are complicated to handle 
+
+##### Binary encoding
+Data encoding matters for very big datasets due to performance reasons. Binary encoding of JSON or XML exists, 
+although the gains are not very big in terms of space, so might not worth the loss of human readability.
+
+#### Thrift and Protocol Buffers
+Both Thrift and Protocol Buffers require a schema for any data that is encoded. Thrift and Protocol Buffers each 
+come with a code generation tool that takes a schema definition, and produces classes that implement the schema in 
+various programming languages. Thrift has two different binary encoding formats,iii called BinaryProtocol and 
+CompactProtocol. 
+In the thrift binary protocol, the data contains type, length of data, the data itself, and field 
+tags (instead of field names), which are numbers identified the field names in the schema definition (like aliases). 
+In the thrift compact protocol, the field type and tag numbers are combined in one, and fields are encoded using 
+variable length integers (the top bytes are used to indicate whether there are still more bytes to come).
+Protocol Buffers is very similar to Thrift’s CompactProtocol.
+
+##### Field tags and schema evolution
+In Thrift and protocol buffers each field is identified by its tag number and annotated with a datatype, if a field 
+value is not set, it is simply omitted from the encoded record. You can change the name of a field in the schema, 
+but you cannot change a field’s tag. You can add new fields to the schema, provided that you give each field a new 
+tag number (Old code would skip a field if it has a tag that doesn't recognize). For backwards compatibility, if a 
+new field is added, can't be made mandatory as it would invalidate the old schemas (or have a default value).
+
+##### Datatypes and schema evolution
+In data type changes, there is a risk that values will lose precision or get truncated.
+
+#### Avro
+Avro also uses a schema to specify the structure of the data being encoded. It has two schema languages: one (Avro 
+IDL) intended for human editing, and one (based on JSON) that is more easily machine-readable. Values are concatenated 
+together, to parse the binary data, you go through the fields in the order that they appear in the schema and use the
+ schema to tell you the datatype of each field (schema mismatch would result in invalid data read).
+ 
+##### The writer’s schema and the reader’s schema
+With Avro, when an application wants to encode some data, it encodes the data using whatever version of the schema 
+it knows about, which might be compiled into the application. This is known as the writer’s schema. On data decoding,
+ it needs the data to be in some schema, known as reader's schema, which don't have to be the same than the writer's 
+ schema (but needs to be compatible). The Avro library resolves the differences by looking at the writer’s schema and 
+ the reader’s schema side by side and translating the data from the writer’s schema into the reader’s schema. 
+ 
+##### Schema evolution rules
+You may only add or remove a field that has a default value. In Avro, if you want to allow a field to be null, you 
+have to use a _union type_: _union { null, long, string } field_; indicates that _field_ can be a number, or a string, 
+or null. Changing the datatype of a field is possible, provided that Avro can convert the type.
+
+##### But what is the writer’s schema?
+The schema of an Avro file can't be included in every record, therefore:
+
+    * Large file with lots of records: Usually the schema is at the beginning of the file. Avro specifies a file 
+    format (object container file) to do this
+    * Database with individually written records: different records may be written at different points in time using
+     different writer’s schemas. A version number indicating the schema is included at the beginning of each record
+    * Sending records over a network connection: Two endpoints in a communication can negotiate the schema version on
+     connection setup (like in the Avro RPC protocol)
+
+##### Dynamically generated schemas
+Avro doesn't contain tag numbers like in Protocol Buffers and Thrift which is friendlier to the dynamically generated 
+schemas, with Thrift or Protocol Buffers for this purpose, the field tags would likely have to be assigned by hand 
+every time the schema changes (from DB columns to field tags).
+
+##### Code generation and dynamically typed languages
+Protocol Buffers and Thrift allows efficient in-memory structures to be used for decoded data after a schema has been
+ defined. There is no point on doing this for dinamically typed languages. Avro provided optional code generation for
+  statically typed languages.
+  
+#### The Merits of Schemas
+Binary encodings based on schemas have a number of nice properties:
+
+    * They can be much more compact than the various “binary JSON” variants, as they can omit field names
+    * The schema is a valuable form of documentation, which is always up to date
+    * Keeping a database of schemas allows you to check forward and backward compatibility of schema changes
+    * Code generation from the schema enables type checking at compile time
+    
+### Modes of Dataflow
+Compatibility is a relationship between one process that encodes the data, and another process that decodes it.
+
+#### Dataflow Through Databases
+In an environment where the application is changing, it is likely that some processes accessing the database will be 
+running newer code and some will be running older code, therefore forward compatibility is also often required for 
+databases. Older clients usually left newly added fields untouched.
+
+##### Different values written at different times
+When you deploy a new version of your application, you may entirely replace the old version with the new version 
+which is not true of database contents, this observation is sometimes summed up as _data outlives code_. Rewriting 
+data into a new schema is certainly possible, but it’s an expensive thing to do on a large dataset, simple schema 
+changes, such as adding a new column with a null default value are supported in most relational databases.
+
+##### Archival Storage
+While archiving, the data dump will typically be encoded using the latest schema, even if the original encoding in the 
+source database contained a mixture of schema versions from different eras.
+
+#### Dataflow Through Services: REST and RPC
+When you have processes that need to communicate over a network, the most common arrangement is to have two roles:
+clients and servers. The servers expose an API over the network, and the clients make requests to that API (known as 
+service). In some ways, services are similar to databases: they typically allow clients to submit and query data. As 
+the querys a client can do are limited by the API, the services can impose fine grained restrictions to what a client
+ can do.
+A key design goal of a service-oriented/microservices architecture is to make the application easier to change and maintain by making services independently deployable and evolvable.
+
+##### Web Services
+When HTTP is used as the underlying protocol for talking to the service, it is called a web service. There are two 
+popular approaches:
+
+    * REST: emphasizes simple data formats, using URLs for identifying resources and using HTTP features for cache control, authentication, and content type negotiation
+    * SOAP: XML-based protocol for making network API requests, the API of a SOAP web service is described using an 
+    XML-based language called the Web Services Description Language, or WSDL
+    
+##### The problems with remote procedure calls (RPCs)
+ The remote procedure call (RPC) model tries to make a request to a remote network service look the same as calling 
+ a function or method in your programming language, within the same process. A network request is very different from 
+ a local function call:
+
+    * Local calls are predictable (either succeeds or not), remote calls are not because involves factors out of our 
+    control like network problems
+    * Local calls returns a result, an exception or never returns (infinite loop). A network call might return 
+    nothing due to timeouts, not knowing what happened in the other end
+    * Retrying a call might lead to unexpected results for non idempotent calls if the bit lost was the response from 
+    the server
+    * Response time in local calls are almost always the same, a network call adds latency to it
+    * You can pass references in a local call (pointers), all parameters needs to be encoded in the network call
+    * Client and services might be implemented using different languages, with potential data type impedance
+    
+##### Current directions for RPC
+The new generation of RPC frameworks is more explicit about the fact that a remote request is different from a local
+ function call, including _futures_ to encapsulate asynchronous calls, or streams, which are a series of requests and
+ responses over time. REST seems to be the predominant style for public APIs. 
+ 
+##### Data encoding and evolution for RPC
+Regarding evolvability it is reasonable to assume that all the servers will be updated first, and all the clients 
+second. Thus, you only need backward compatibility on requests, and forward compatibility on responses. Compatibility
+needs to be maintained for a long time, perhaps indefinitely. For RESTful APIs, common approaches are to use a 
+version number in the URL or in the HTTP Accept header.
+
+#### Message-Passing Dataflow
+Asynchronous message-passing systems are similar to RPC in that a client’s request is delivered to another process 
+with low latency and similar to databases in that the message is not sent via a direct network connection, but goes 
+via an intermediary called a message broker, which stores the message temporarily. This brings some advantages:
+
+    * It can act as a buffer if the recipient is unavailable or overloaded, improving system reliability
+    * It can automatically redeliver messages to a process that has crashed, preventing messages from being lost
+    * It avoids the sender needing to know the IP address and port number of the recipient
+    * It allows one message to be sent to several recipients.
+    * It logically decouples the sender from the recipient. 
+    
+The sender doesn't usually expect to receive a reply.
+
+##### Message Brokers
+Message brokers are used as follows: one process sends a message to a named queue or topic, and the broker ensures 
+that the message is delivered to one or more consumers of or subscribers to that queue or topic. A consumer may 
+itself publish messages to another topic or to a reply queue that is consumed by the sender of the original message. 
+Message brokers typically don’t enforce any particular data model
+
+##### Distributed actor frameworks
+The actor model is a programming model for concurrency in a single process. The logic is encapsulated in the actors, 
+which might have some local non-shared state, and communicates with other actors by sending and receiving 
+asynchronous messages, with message delivery not guaranteed.
+A distributed actor framework essentially integrates a message broker and the actor programming model into a single 
+ framework.
+ 
+## Chapter 5: Replication<a name="Chapter5"></a>
+If your dataset can fit in a single machine, all of the difficulty in replication lies in handling changes to replicated
+data.
+
+### Leaders and Followers
+The replicas of datastores needs to be updated to stay in sync with the latest data. The most common solution for 
+this is called leader-based replication:
+
+    1. One replica is the leader (master or primary), which receives client request and writes new data to local storage
+    2. The rest of replicas (followers, read replicas, slaves or secondaries), receives the data change from the 
+    leader as part of a replication log or change stream and updates their local copy of the data by applying the 
+    writes in order
+    3. A client can then query the leader or the replicas, although writes are only accepted in the leader
+    
+This architecture is used in RDBMS (MySQL, Oracle, PostgreSQL...) and NoSQL DB (MongoDB, Espresso...) and even 
+message brokers (Kafka, RabbitMQ)
+
+#### Synchronous Versus Asynchronous Replication
+Replication can happen synchronously or asynchronously (often configurable in RDBMS). In synchronous replication the 
+leader waits until the follower have confirmed the write before reporting success to the client and before making the
+ write visible to other clients (guarantee of availability if the leader fails at the cost of latency), in asynchronous 
+ replication, the leader sends the write to the replica and does not wait (leading to potential data lost). Usually for 
+ sync replication, at least one follower needs to be in sync (this is called semi-synchronous replication).
+ 
+#### Setting Up New Followers
+The process of setting up a new follower looks like this:
+
+    1. Take a consistent snapshot of the leader’s database at some point in time
+    2. Copy the snapshot to the new follower node
+    3. After the copy, request all the changes since the snapshot was taken (snapshot is associated with an exact 
+    position on the replication log)
+    4. One the follower has copied all the changes we say it has caught up
+
+#### Handling Node Outages
+##### Follower failure: Catch-up recovery
+The follower gets the last transaction it has processed and request to the leader all the changes since then. After 
+the caught up, it can continue receiving a stream of data changes as before.
+
+##### Leader failure: Failover
+One of the followers needs to be promoted to be the new leader, clients needs to send the writes to it and the other 
+followers need to start consuming data changes from it. This process is called failover. An automatic failover steps 
+are:
+
+    1. Determining that the leader has failed: Most of systems use a timeout, if a node does not reply in X seconds, 
+    then it is assumed to be dead
+    2. Elect a new leader: Either by election or be appointed by a previously elected controller node
+    3. Reconfiguring the system to use the new leader: Clients needs to send request to the new leader, if the old 
+    leader comes back, he might still thinks it is the leader
+    
+Things that can go wrong:
+
+    * In async replication, the new leader might not be up to date with all the writes. If the old leader comes back,
+     those not sync writes are usually discarded
+    * Discarded writes are problematic for outsiders to the system, and a potential source of problems
+    * In fault scenarios, two nodes might believe they are the leaders (this is called split brain), both accepting 
+    writes, leading to inconsistency
+    * Choosing the right timeout is problematic as it is a trade-off between availability and unnecessary failovers
+
+#### Implementation of Replication Logs
+There are several leader-based replication methods:
+##### Statement-based replication
+The leader logs every write request (statement) that it executes and sends that statement log to its followers. It 
+is now being replaced due to:
+
+    * If there is a call to a non-deterministic function like NOW() or RAND(), which would generate unsync data
+    * If statements use an autoincrementing column or they depend on existing data, the statements needs to be 
+    executed in order
+    * Statements with side effects might result in different results in the replicas
+    
+#### Write-ahead log (WAL) shipping
+Either for log structured storage engines or for B-trees, the log is an append-only sequence of bytes containing all 
+writes to the DB. This log can be used to create another replica. The main disadvantage is that the log describes 
+the data on a very low level: a WAL contains details of which bytes were changed in which disk blocks, leading to 
+problems with version upgrading.
+
+##### Logical (row-based) log replication
+An alternative is to use different log formats for replication and for the storage engine, which allows the 
+replication log to be decoupled from the storage engine internals (this is called logical log). This log:
+
+    * For an inserted row, the log contains the new values of all columns
+    * For a deleted row, the log contains enough information to uniquely identify the row that was deleted (PK or
+    all columns need to be logged)
+    * For an updated row, the log contains enough information to uniquely identify the updated row (same than before)
+    
+Logical log replication is decoupled from the underlying database software, and it is easier for an external 
+application to parse.
+
+##### Trigger-based replication
+Replication might be needed to be moved up to the application layer. There are tools to make this like Oracle 
+GoldenGate but there are other features to do this: _triggers_ and _stored procedures_.
+A trigger lets you register custom application code that is automatically executed when a data change occurs in a 
+database system, but is more limited and prone to bugs.
+
+### Problems with Replication Lag
