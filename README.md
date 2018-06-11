@@ -238,7 +238,7 @@ object). The subject here is similar to a vertex in a graph, the object is eithe
 equivalent to the key and value of a property on the subject vertex, or another vertex in the graph (tail vertex). 
 
 ##### The semantic web
-The Resource Description Framework (RDF) was intended as a mechanism for different web‐ sites to publish data in
+The Resource Description Framework (RDF) was intended as a mechanism for different websites to publish data in
  a consistent format, allowing data from different websites to be automatically combined into a web of data—a kind 
  of internet-wide "database of everything.". Triples can be a good internal data model to represent it.
  
@@ -260,7 +260,7 @@ SELECT ?personName WHERE {
 }
 ```
 
-Because RDF doesn’t distinguish between properties and edges but just uses predi‐ cates for both, you can use the 
+Because RDF doesn’t distinguish between properties and edges but just uses predicates for both, you can use the 
 same syntax for matching properties.
 
 #### The Foundation: Datalog
@@ -845,7 +845,7 @@ In a multi-leader setup, conflicts are detected asynchronously unless you make i
 rest of the leader replicas to write the data, but this adds lag. 
 
 ##### Conflict avoidance
-If the application can ensure that all writes for a particular record go through the same leader, then con‐ flicts 
+If the application can ensure that all writes for a particular record go through the same leader, then conflicts 
 cannot occur. Sometimes you might want to change the designated leader for a record, so conflict avoidance breaks down,
 and you have to deal with the possibility of concurrent writes on different leaders.
 
@@ -997,3 +997,108 @@ If more replicas without leader where added to the previous scenario, we need to
  database to distinguish between overwrites and concurrent writes.
  
  ## Chapter 6: Partitioning<a name="Chapter6"></a>
+Partitions are like a small databases, but supports operations that touch multiple partitions at the same time. 
+Partitioning is usually combined with replication so that copies of each partition are stored on multiple nodes.
+
+### Partitioning of Key-Value Data
+Our goal with partitioning is to spread the data and the query load evenly across nodes (if the partitioning is 
+unfair so that some partitions have more data or queries than others, we call it skewed). The simplest approach for 
+avoiding _hot spots_ would be to assign records to nodes randomly.
+
+#### Partitioning by Key Range
+Partitions are assigned (manually or automatically) as a continuous range of keys (like a dictionary index). Ranges 
+need not to be evenly spaced if the data is not evenly distributed. This approach is used by MongoDB, BigTable, HBase...
+Keys can be ordered within partitions. This approach can lead to hotspots
+
+#### Partitioning by Hash of Key
+A hash function is used to determine the partition for a given key. The hash function need not be cryptographically 
+strong, you can assign each partition a range of hashes, and every key whose hash falls within a partition’s range 
+will be stored in that partition.
+A table in Cassandra can be declared with a compound primary key consisting of several columns. Only the first part 
+of that key is hashed to determine the partition, but the other columns are used as a concatenated index for sorting
+ the data in Cassandra’s SSTables
+ 
+#### Skewed Workloads and Relieving Hot Spots
+In the extreme case where all reads and writes are for the same key, you still end up with all requests being routed 
+to the same partition (for example a celebrity twitter account). A common technique to solve this is if one key is 
+known to be very hot, a simple technique is to add a random number to the beginning or end of the key. Extra work 
+would have to be done around combining those keys and keeping track which keys were splitted in that way.
+
+### Partitioning and Secondary Indexes
+A secondary index usually doesn’t identify a record uniquely but rather is a way of searching for occurrences of a 
+particular value. The problem with secondary indexes is that they don’t map neatly to partitions.
+
+#### Partitioning Secondary Indexes by Document
+If you have a list of documents distributed in partitions representing cars, and you want to allow users of that 
+database to search for things like color or brand, each partition would have to have secondary indexes to map this 
+features, covering only the cars in that partition. To do CRUD over a document, you have to interact with a single 
+partition. A document-partitioned index is also known as a _local index_. Care has to be taken to avoid putting all 
+potential documents that would be returned in a query (such as all the red cars) in a single partition. Querys are 
+sent to every partition and combined back (known as _scatter/gather_), and they are prone to _tail latency_.
+
+#### Partitioning Secondary Indexes by Term
+We can also construct a global index that covers data in all partitions (namely _term index_). A global index must
+ also be partitioned, but it can be partitioned differently from the primary key index: the term we’re looking for 
+ determines the partition of the index, we can partition the index by the term itself, or using a hash of the term.
+ It is more efficient than the scatter/gather approach as only one partition is queried, the downside of a global 
+ index is that writes are slower and more complicated (a write on a document needs to modify several partitions 
+ of the indexes). Updates in secondary indexes are usually asynchronous for this reason.
+ 
+### Rebalancing Partitions
+The process of moving load from one node in the cluster to another is called rebalancing. Rebalancing should at least:
+    
+    * Distribute the data load fairly between the nodes in the cluster
+    * While rebalancing is happening, the database should continue accepting reads and writes
+    * No more data than necessary should be moved between nodes
+    
+#### Strategies for Rebalancing
+##### How not to do it: hash mod N
+The problem with the mod N approach is that if the number of nodes N changes, most of the keys will need to be moved
+ from one node to another.
+
+##### Fixed number of partitions
+A simple solution is to create more partitions than nodes, so if new nodes are added, whole partitions can be moved 
+to that node, more powerful nodes can get more partitions to get more load. In this configuration, the number of 
+partitions is usually fixed when the database is first set up and not changed afterward. It is hard to get the number
+ of partitions right for very variable datasets.
+ 
+##### Dynamic partitioning
+Fixed partition number is not the most indicate solution for key range partitioning, therefore they usually allocate 
+partitions dynamically: When a partition grows to exceed a configured size, it is split into two partitions so that 
+approximately half of the data ends up on each side of the split (similar to a B tree).
+An empty database starts with a single partition,so all writes have to be processed by a single node while the other 
+nodes sit idle until the dataset is first split. Some databases allow an initial set of partitions to be configured 
+on an empty database (_pre-splitting_). But pre-splitting requires that you already know what the key distribution 
+is going to look like.
+
+##### Partitioning proportionally to nodes
+Both in fixed and dynamic partitioning, the number of partitions is independent of the number of nodes in the cluster.
+Another approach is to make the number of partitions proportional to the number of nodes, this is to have a fixed 
+number of partitions per node. When a new node joins the cluster, it randomly chooses a fixed number of existing 
+partitions to split, and then takes ownership of one half of each of those split partitions while leaving the other 
+half of each partition in place. Picking partition boundaries randomly requires that hash-based partitioning is used.
+
+#### Operations: Automatic or Manual Rebalancing
+Fully automated rebalancing require less operational work to do for normal maintenance but it can be unpredictable. 
+Such automation can be dangerous in combination with automatic failure detection. 
+
+### Request Routing
+As partitions are rebalanced, the assignment of partitions to nodes changes and request have to be issued to the new 
+holders of partitions (This is an instance of a more general problem called _service discovery_). There are different
+ approaches to the problem:
+ 
+    * Allow clients to contact any node, if the node has the partitions it responds to the query otherwise it 
+    provides the address to the node
+    * Send all requests from clients to a routing tier first (load balancer), which replies with the address of the node
+    * Require that clients be aware of the partitioning and the assignment of partitions to nodes
+    
+Many distributed data systems rely on a separate coordination service such as ZooKeeper to keep track of this cluster
+ metadata, which maintains the authoritative mapping of partitions to nodes. Other approaches use a gossip protocol 
+ among the nodes to disseminate any changes in cluster state.
+ 
+#### Parallel Query Execution
+Massively parallel processing (MPP) relational database products,relies on query optimizer to break query complexty 
+into a number of execution stages and partitions, many of which can be executed in parallel on different nodes of 
+the database cluster.
+
+ ## Chapter 7: Transactions<a name="Chapter7"></a>
