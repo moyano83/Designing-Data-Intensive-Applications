@@ -1390,3 +1390,185 @@ SSI is very appealing for read-heavy workloads, SSI is less sensitive to slow tr
 
 
 ## Chapter 8: The Trouble with Distributed Systems<a name="Chapter8"></a>
+## Faults and Partial Failures
+A failure in a distributed system is usually non-deterministic, resulting in partial failures.
+
+###Cloud Computing and Supercomputing
+Supercomputers usually behaves like a big machine with specialized hardware, usually shares the same network and if a 
+fail occurs they are usually shut down for mainteinance. Clod computing is different because the nodes are built 
+from commodity machines, can't go offline because they usually provide high availability services. We need to assume 
+that software is likely to fail and we should still provide a reliable service in that scenario (Building a Reliable
+ System from Unreliable Components). 
+
+## Unreliable Networks
+Shared nothing architectures where machines are connected using internet and each machines has their own memory 
+and disc are the most common way of building systems. In such systems if a sender sends a message the problems are 
+indistinguishable from asynchronous network problems, and the usual approach is to raise a timeout (which doesn't 
+mean that the operation didn't went through). 
+
+### Network Faults in Practice
+There is no way around a network fault, whichever the reason is, you do need to know how your software reacts to 
+network problems and ensure that the system can recover from them.
+
+### Detecting Faults
+Even if your system can handle network failure like not routing to a dead node or electing a new leader in case of 
+replicated systems, there is still uncertaintity on how much data the failing node actually processed: if you want to
+ be sure that a request was successful, you need a positive response from the application itself.
+ 
+### Timeouts and Unbounded Delays
+Setting the appropriate timeouts can be problematic, if a node has simply slow down, then declared it dead might 
+result on performing the same operation twice. Asynchronous networks have unbounded delays. That is, they try to 
+deliver packets as quickly as possible, but there is no upper limit on the time it may take for a packet to arrive.
+
+#### Network congestion and queueing
+Network congestion slows down the rate of package sending. This can happen due to several reasons like multiple nodes
+ trying to use the same communication link at the same time, if destination machine has all CPU cores busy (the 
+ package will be queued), round robin of CPU cycles in virtualized environments, the TCP own flow control (congestion
+ avoidance or backpressure)... 
+In public clouds, resource utilization and network delays can be highly variable specially in noisy clusters. In that
+ case the timeout is usually chosen experimentally. Even more, timeouts can be configured dinamically by measuring 
+ response times and adjusting it automatically (jitter).
+ 
+### Synchronous Versus Asynchronous Networks
+In Synchronous networks like the telephone, the bandwidth is reserved and a circuit is established, guaranteeing 
+almost no delay. The packets of a TCP connection in the other hand, opportunistically use whatever network bandwidth is 
+available, but no network is used if a TCP link is idle, this is because they are optimized for bursty traffic. 
+
+## Unreliable Clocks
+In a distributed system, time is a tricky business, because communication is not instantaneous, each machine on the 
+network has its own clock, which is an actual hardware device. The most commonly used mechanism to synchronize clocks
+ is the Network Time Protocol (NTP).
+ 
+### Monotonic Versus Time-of-Day Clocks
+Modern computers have at least two different kinds of clocks: a time-of-day clock and a monotonic clock.
+
+    * A time-of-day clock returns the current date and time according to some calendar, they are usually synchronized 
+    with NTP which can result in odd time back travels if they are far away from the NTP server
+    * A monotonic clock is suitable for measuring a duration, they are guaranteed to always move forward, but the 
+    absolute value of the clock is meaningless. NTP may adjust the frequency at which the monotonic clock moves forward, 
+    but cannot cause the monotonic clock to jump forward or backward
+    
+In a distributed system, using a monotonic clock for measuring elapsed time (e.g., timeouts) is usually fine, because it 
+ doesn't assume any synchronization between different nodes’ clocks and is not sensitive to slight inaccuracies of 
+ measurement.
+ 
+### Clock Synchronization and Accuracy
+The Time of day clock needs to be synchronized with the NTP server, a computer might reject this synchronization if 
+the clock is too away from the NTP server. More problems can arise if the firewall does not allow this 
+synchronization to happen or if there is network delays, leap seconds can mess up timing assumptions in systems. It 
+is possible to achieve a more accurate synchronization using precision time protocol (PTP).
+
+### Relying on Synchronized Clocks
+If you use software that requires synchronized clocks, it is essential that you also carefully monitor the clock 
+offsets between all the machines.
+
+#### Timestamps for ordering events
+If two nodes are not synchronized, the events they generate (for example a counter increment), can lead to 
+incorrectly ordering them, which might cause a drop of a value if the strategy followed is a LRW. logical clocks, 
+which are based on incrementing counters rather than an oscillating quartz crystal, are a safer for ordering events.
+
+#### Clock readings have a confidence interval
+Even if a clock has a lot of resolution (even nanoseconds), its accuracy depends on variable drift, reading a clock 
+is more like a range of times, within a confidence interval.
+
+#### Synchronized clocks for global snapshots
+Spanshot isolation allows read-only transactions to see the database in a consistent state at a particular point 
+in time, without locking and interfering with read- write transactions. A monotonically increasing transaction ID is 
+the usual approach to do this, but in a distributed database this requires coordination. If we have two confidence 
+intervals, each consisting of an earliest and latest possible timestamp, and those two intervals do not overlap, then B 
+definitely happened after A. Only if the intervals overlap are we unsure in which order A and B happened.
+
+### Process Pauses
+In an scenario of a single leader partition where a node needs to know if it is still a leader to accept writes, a 
+lease (a lock with a timeout) can be granted, the node accepts writes until the lease is expired and needs to be 
+renewed. This scenario can be problematic if the expiry date on the lease is compared with the internal clock value. 
+In these situations, a process pause can mess up the clock checking, for example a pause after checking if the lease 
+is valid and before accepting the write. This pause can be due to garbage collection, process pause in virtualized 
+environments, I/O pause, disks swaps...
+A node in a distributed system must assume that its execution can be paused for a significant length of time at any 
+ point, even in the middle of a function. 
+ 
+#### Response time guarantees
+The pauses described before can be eliminated on _hard real-time systems_ like airplane control systems, those in were 
+if no response is given in a certain amount of time, it can provoke a system failure. This is achieved through real-time
+ operating system (RTOS) which allows processes to be scheduled with a guaranteed allocation of CPU time in specified
+ intervals is needed. These systems are limited to critical software cases due to cost.
+ 
+#### Limiting the impact of garbage collection
+An emerging idea is to treat GC pauses like brief planned outages of a node, and to let other nodes handle requests 
+from clients while one node is collecting its garbage. If the runtime can warn the application that a node soon 
+requires a GC pause, the application can stop sending new requests to that node, wait for it to finish processing 
+outstanding requests, or planned restart of process (and thus cleaning of long live objects) can be scheduled.
+
+## Knowledge, Truth, and Lies
+A node in the network can only make guesses based on the messages it receives (or doesn’t receive) via the network. 
+A node can only find out what state another node is in by exchanging messages with it. If a remote node doesn’t 
+respond, there is no way of knowing what state it is in. In a distributed system, we can state the assumptions we 
+are making about the behavior (the system model) and design the actual system in such a way that it meets those 
+assumptions. 
+
+### The Truth Is Defined by the Majority
+If a node can receive messages but can't send them, or after a long GC pause, it can be declared dead, thus we 
+shouldn't rely on single node, but in a _quorum_ of nodes. A majority has to take the decision, to avoid conflicts.
+
+#### The leader and the lock
+Frequently, a system requires there to be only one of some thing (single node processing write requests, or hold a 
+lock). Implementing this in a distributed system requires care an quorum.
+
+#### Fencing tokens
+When using a lock or lease to protect access to some resource, we need to ensure that a node that is under a false 
+belief of being “the chosen one” cannot disrupt the rest of the system. A simple technique that achieves this goal is
+ called fencing. A fencing token is given every time a lock is granted (an increasing number), which is included on 
+ the write requests. If a write request is processed by the storage system, it will reject writes with a lower token 
+ number.
+ 
+### Byzantine Faults
+If a node deliberately wanted to subvert the system’s guarantees, it can do so by sending messages with a fake fencing
+ token. A Byzantine fault occurs when a node claim to have received a particular message when in fact it didn't and 
+ systems can be Byzantine fault-tolerant. Most Byzantine fault-tolerant algorithms require a supermajority of more than 
+ two-thirds of the nodes to be functioning correctly.
+ 
+#### Weak forms of lying
+It can be worth adding mechanisms to software that guard against weak forms of “lying” like invalid messages due to 
+hardware issues, software bugs, and misconfiguration. This usually includes checksums, input sanitization, or 
+multiserver configuration to determine quorums.
+
+### System Model and Reality
+Algorithms need to be written in a way that does not depend too heavily on the details of the hardware and software 
+ configuration on which they are run. With regard to timing assumptions, three system models are in common use:
+ 
+    * Synchronous model: assumes bounded network delay, bounded process pau‐ ses, and bounded clock error
+    * Partially synchronous model: assumes that systems behaves like a synchronous system most of the time
+    * Asynchronous model: an algorithm is not allowed to make any timing assumptions (it does not even have a clock)
+    
+The three most common system models for nodes are:
+
+    * Crash-stop faults: an algorithm may assume that a node can fail in only one way, namely by crashing
+    * Crash-recovery faults: nodes may crash at any moment, and perhaps start responding again after some unknown time. 
+    Nodes are assumed to have stable storage that is preserved across crashes, in-memory state is assumed to be lost
+    * Byzantine (arbitrary) faults: Nodes may do absolutely anything, including trying to trick and deceive other nodes
+    
+For modeling real systems, the partially synchronous model with crash-recovery is generally the most useful model.
+
+#### Correctness of an algorithm
+To define what it means for an algorithm to be correct, we can describe its properties. An algorithm is correct in 
+some system model if it always satisfies its properties in all situations that we assume may occur in that system model.
+
+#### Safety and liveness
+The properties mentioned before can be of two types:
+
+    * safety: defined as nothing bad happens, if they are violated we can point at a particular point in time at 
+    which it was broken (i.e. uniqueness), the violation can't be undone as the damage is already done
+    * liveness: defined as something good eventually happens, they may not hold at some point in time (i.e. server 
+    availability)
+    
+For distributed algorithms, it is common to require that safety properties always hold, in all possible situations 
+ of a system model while with liveness properties we are allowed to make caveats.
+ 
+#### Mapping system models to the real world
+The system model is a simplified abstraction of reality, a real implementation may still have to include code to 
+handle the case where something happens that was assumed to be impossible. Theoretical analysis and empirical testing 
+are equally important.
+
+
+## Chapter 9: Consistency and Consensus<a name="Chapter9"></a>
