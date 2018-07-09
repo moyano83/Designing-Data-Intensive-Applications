@@ -127,7 +127,7 @@ by a unique identifier, which is called a foreign key in the RBDMS and a documen
 
 #### Relational Versus Document Databases Today
 ##### Which data model leads to simpler application code?
-If the data in your application has a document-like structure (i.e., a tree of one-to- many relationships, where 
+If the data in your application has a document-like structure (i.e., a tree of one-to-many relationships, where 
 typically the entire tree is loaded at once), use a document model. The document model still needs to have access 
 patterns for nested structures. If many-to-many relationships are needed, you are most likely to use a relational model.
 Usually highly interconnected data is more efficiently represented with the relational model and graph models.
@@ -360,7 +360,7 @@ Some optimizations can be:
     * Use a copy-on-write scheme instead of WAL: A modified page is written to a different location, and a new 
     version of the parent pages in the tree is created, pointing at the new location
     * Abreviatting the keys to save space, specially in interior pages which only needs to act as boundaries
-    * Many B- tree implementations therefore try to lay out the tree so that leaf pages appear in sequential order on disk
+    * Many B-tree implementations therefore try to lay out the tree so that leaf pages appear in sequential order on disk
     * Additional pointer to sibling pages might be added to speed scanning
     * Fractal trees variants
     
@@ -607,13 +607,15 @@ clients and servers. The servers expose an API over the network, and the clients
 service). In some ways, services are similar to databases: they typically allow clients to submit and query data. As 
 the querys a client can do are limited by the API, the services can impose fine grained restrictions to what a client
  can do.
-A key design goal of a service-oriented/microservices architecture is to make the application easier to change and maintain by making services independently deployable and evolvable.
+A key design goal of a service-oriented/microservices architecture is to make the application easier to change and
+maintain by making services independently deployable and evolvable.
 
 ##### Web Services
 When HTTP is used as the underlying protocol for talking to the service, it is called a web service. There are two 
 popular approaches:
 
-    * REST: emphasizes simple data formats, using URLs for identifying resources and using HTTP features for cache control, authentication, and content type negotiation
+    * REST: emphasizes simple data formats, using URLs for identifying resources and using HTTP features for cache 
+    control, authentication, and content type negotiation
     * SOAP: XML-based protocol for making network API requests, the API of a SOAP web service is described using an 
     XML-based language called the Web Services Description Language, or WSDL
     
@@ -1332,7 +1334,7 @@ either be in shared mode or in exclusive mode:
     * If a transaction first reads and then writes an object, it may upgrade its shared lock to an exclusive lock. The 
     upgrade works the same as getting an exclusive lock directly
     * After a transaction has acquired the lock, it must continue to hold the lock until the end of the transaction. 
-    This is where the name “two- phase” comes from: the first phase (while the transaction is executing) is when the
+    This is where the name “two-phase” comes from: the first phase (while the transaction is executing) is when the
     locks are acquired, and the second phase (at the end of the transaction) is when all the locks are released
     
 The database automatically detects deadlocks between transactions and aborts one of them so that the others can make
@@ -1473,7 +1475,7 @@ is more like a range of times, within a confidence interval.
 
 #### Synchronized clocks for global snapshots
 Spanshot isolation allows read-only transactions to see the database in a consistent state at a particular point 
-in time, without locking and interfering with read- write transactions. A monotonically increasing transaction ID is 
+in time, without locking and interfering with read-write transactions. A monotonically increasing transaction ID is 
 the usual approach to do this, but in a distributed database this requires coordination. If we have two confidence 
 intervals, each consisting of an earliest and latest possible timestamp, and those two intervals do not overlap, then B 
 definitely happened after A. Only if the intervals overlap are we unsure in which order A and B happened.
@@ -1572,3 +1574,324 @@ are equally important.
 
 
 ## Chapter 9: Consistency and Consensus<a name="Chapter9"></a>
+The best way of building fault-tolerant systems is to find some general-purpose abstractions with useful guarantees, 
+one of the most useful ones is _consensus_.
+
+### Consistency Guarantees
+Most replicated databases provide at least eventual consistency (also named _convergence_), which means that if you 
+stop writing to the database and wait for some unspecified length of time, then eventually all read requests will return
+ the same value. This is a weak for of guarantee, systems with stronger guarantees may have worse performance or be 
+ less fault-tolerant than systems with weaker guarantees.
+ 
+### Linearizability
+The idea behind linearizability ( or _atomic consistency_, _strong consistency_, _immediate consistency_, or 
+_external consistency_) is that the database gives the illusion that there is only one replica so the client would have 
+the same view of the data. This means guaranteeing that the value read is the most recent, up-to-date value, and 
+doesn't come from a stale cache or replica.
+
+#### What Makes a System Linearizable?
+In a linearizable system we imagine that there must be some point in time (between the start and end of the write 
+operation) at which the value written atomically flips from one value to another. Thus, if one client’s read returns 
+the new value, all subsequent reads must also return the new value, even if the write operation has not yet completed.
+Once a new value has been written or read, all subsequent reads see the value that was written, until it is 
+overwritten again.
+
+#### Relying on Linearizability
+
+    * Locking and leader election: A system that uses single-leader replication needs to ensure that there is indeed 
+    only one leader, not several (split brain). This can be implemented with locks, every node that starts up tries 
+    to acquire the lock, and the one that succeeds becomes the leader
+    * Constraints and uniqueness guarantees: If you want to enforce the uniqueness constraint as the data is written, 
+    you need linearizability
+    * Cross-channel timing dependencies: If a system needs two different communication channels to do some task (like
+     a background resizing process that needs to read from an external storage), you need linearizability 
+
+#### Implementing Linearizable Systems
+The most common approach to making a system fault-tolerant is to use replication. But if we compare whether they can be 
+made linearizable:
+
+    * Single-leader replication (potentially linearizable): Using the leader for reads relies on the assumption that 
+    you know for sure who the leader is (not guaranteed with asynchronous replication)
+    * Consensus algorithms (linearizable): these protocols contain measures to prevent split brain and stale replicas
+    * Multi-leader replication (not linearizable): because concurrently process writes on multiple nodes and 
+    asynchronously replicate them to other nodes
+    * Leaderless replication (probably not linearizable): Depending on the exact configuration of the quorums, and 
+    depending on how you define strong consistency, linearizability might be broken
+    
+##### Linearizability and quorums
+It is possible to make Dynamo-style quorums linearizable at the cost of reduced performance: a reader must perform 
+read repair synchronously, before returning results to the application, and a writer must read the latest state of a
+ quorum of nodes before sending its writes. It is safest to assume that a leaderless system with Dynamo-style 
+ replication does not provide linearizability.
+
+#### The Cost of Linearizability
+Consider what happens if there is a network interruption between the two datacenters. With a multi-leader database, 
+each datacenter can continue operating normally: since writes from one datacenter are asynchronously replicated to 
+the other, the writes are simply queued up and exchanged when network connectivity is restored. If single-leader 
+replication is used,any writes and any linearizable reads must be sent to the leader, for any clients connected
+ to a follower datacenter, those read and write requests must be sent synchronously over the network to the leader 
+ datacenter.
+
+##### The CAP theorem
+Important considerations:
+
+    * If your application requires linearizability, and some replicas are disconnected from the other replicas due 
+    to a network problem, then some replicas cannot process requests while they are disconnected
+    * If your application does not require linearizability, then it can be written in a way that each replica can 
+    process requests independently, even if it is disconnected from other replicas
+
+The CAP theorem only considers one consistency model (linearizability) and one kind of fault (network partitions or 
+nodes that are alive but disconnected from each other), so it has little practical value for designing systems.
+
+##### Linearizability and network delays
+Even in multi core CPUs, reads are not guaranteed to get the value written by another core thread, since there are 
+intermediate caches and buffers. In this case, the reason for dropping linearizability is performance, not fault 
+tolerance, which is applicable to other databases. Weaker consistency models can be much faster than linear ones.
+
+### Ordering Guarantees
+Linearizability requires some guarantee of ordering, there are deep connections between ordering, linearizability, 
+and consensus.
+
+#### Ordering and Causality
+Order preserves causality, some examples of casuality are: 
+
+    * Causal dependency between the question and the answer (prefix reads)
+    * A row should exists to be able to modify it (read overtake)
+    * A happened before relationship is another expression of causality (concurrent write detection)
+    * In snapshot isolation, transaction reads from a consistent snapshot. Reading stale data violates casuality
+    * Write skew between transactions, serializable snapshot isolation detects write skew by track‐ ing the causal 
+    dependencies between transactions
+
+The chains of causally dependent operations define the causal order in the system, what happened before what. If a 
+system obeys the ordering imposed by causality, we say that it is causally consistent.
+
+##### The causal order is not a total order
+A total order allows any two elements to be compared (i.e natural numbers). The difference between a total order and
+ a partial order is reflected in different database consistency models:
+ 
+    * Linearizability: There is a total order of operations, we can always say which operation happened first
+    * Causality: Two events are ordered if they are causally related, but they are incomparable if they are 
+    concurrent. Casualty defines a partial order (some elements are incomparable)
+    
+According to this definition, there are no concurrent operations in a linearizable datastore.
+
+##### Linearizability is stronger than causal consistency
+Linearizability implies causality: any system that is linearizable will preserve causality correctly. Linearizability is
+ not the only way of preserving causality, causal consistency is the strongest possible consistency model that does 
+ not slow down due to network delays, and remains available in the face of network failures.
+ 
+##### Capturing causal dependencies
+In order to maintain causality, you need to know which operation happened before which other operation. Causal 
+consistency techniques are similar to the ones for detecting concurrent writes, but it needs to track causal 
+dependencies across the entire database, not just for a single key. Hence these databases needs to know which version
+ of the data was read by the application.
+ 
+#### Sequence Number Ordering
+Sequence numbers helps to guarantee casuality and keep tracks of dependencies. Timestamps for these numbers can come 
+from a _logical clock_, which is an algorithm to generate a sequence of numbers to identify operations, typically 
+using counters that are incremented for every operation.
+In a database with single-leader replication, the replication log defines a total order of write operations that is 
+consistent with causality.
+
+##### Noncausal sequence number generators
+For non single-leader databases is a bit less clear how to generate these sequence numbers. There are several methods:
+
+    * Each node can generate its own independent set of sequence numbers
+    * You can attach a timestamp from a time-of-day clock to each operation (used in LWR)
+    * You can preallocate blocks of sequence numbers
+    
+These operations are more performant but the sequence numbers they generate are not consistent with causality.
+
+##### Lamport timestamps
+There is a simple method for generating sequence numbers that is consistent with causality, Called _Lamport timestamp_.
+The Lamport timestamp is simply a pair of operation counter and node identifier attached to the operation. This provides
+total ordering: if you have two timestamps, the one with a greater counter value is the greater timestamp and if the 
+counter values are the same, the one with the greater node ID is the greater timestamp.
+This is consistent with casuality because every node and every client keeps track of the maximum counter value it 
+has seen so far, and includes that maximum on every request. When a node receives a request or response with a 
+maximum counter value greater than its own counter value, it immediately increases its own counter to that maximum.
+
+##### Timestamp ordering is not sufficient
+In the case where a node needs to make a decission on the moment, without gathering the results from other nodes to 
+determine if it is possible (for example creation of a unique username), timestamp ordering is not sufficient, you 
+also need to know when that order is finalized. This idea of knowing when your total order is finalized is known as 
+_total order broadcast_.
+
+#### Total Order Broadcast
+Total order broadcast is a protocol for exchanging messages between nodes. It requires two safety properties:
+
+    * Reliable delivery: No messages are lost (if a message is delivered to one node, it is delivered to all nodes)
+    * Totally ordered delivery: Messages are delivered to every node in the same order
+    
+##### Using total order broadcast
+Consensus services (_ZooKeeper_ and _etcd_) implements total order broadcast. Total order broadcast is needed for 
+database replication: if every message represents a write to the database, and every replica processes the same 
+writes in the same order, then the replicas will remain consistent with each other (known as state machine replication).
+In total order broadcast the order is fixed at the time the messages are delivered, also useful for implementing a 
+ lock service that provides fencing tokens.
+
+##### Implementing linearizable storage using total order broadcast
+Total order broadcast is asynchronous: messages are guaranteed to be delivered reliably in a fixed order, but there 
+is no guarantee about when a message will be delivered. Linearizability is a recency guarantee: a read is guaranteed 
+to see the latest value written. You can build linearizable storage on top of total order broadcast, with the example
+ of the unique username:
+     
+    * Append a message to the log, tentatively indicating the username you want to claim
+    * Read the log, and wait for the message you appended to be delivered back to you
+    * Check for any messages claiming the username that you want. If the first message for your desired username is 
+    your own message, then you are successful (perhaps commmit it by appending another message to the log) and 
+    acknowledge it to the client
+    
+The procedure described provides sequential consistency, also known as _timeline consistency_, a slightly weaker 
+guarantee than linearizability).
+
+##### Implementing total order broadcast using linearizable storage
+The easiest way to build total order broadcast using linearizable storage is to assume you have a linearizable register
+ that stores an integer and that has an atomic increment-and-get operation. Alternatively, an atomic compare-and-set
+ operation would also do the job.
+ 
+### Distributed Transactions and Consensus
+The goal of consensus is simply to get sev‐ eral nodes to agree on something. Consensus is important in _leader 
+election_ or _Atomic commit_ (in distributed transactions either all nodes commits or rolls back).
+
+#### Atomic Commit and Two-Phase Commit (2PC)
+##### From single-node to distributed atomic commit
+On a single node, transaction commitment crucially depends on the order in which data is durably written to disk: 
+first the data, then the commit record to indicate a successful transaction. In distributed transactions it is not 
+sufficient to simply send a commit request to all of the nodes and independently commit the transaction on each one, 
+as problems with communications, uniqueness of keys or even crashes might happen in any node making the transaction 
+inconsistent.
+
+##### Introduction to two-phase commit
+Two-phase commit is an algorithm for achieving atomic transaction commit across multiple nodes. 2PC uses a component
+that does not normally appear in single-node transactions named _coordinator_ or _transaction manager_. A 2PC  
+transaction begins with the application reading and writing data on multiple database nodes (called participants in 
+the transaction). In phase 1, the coordinator sends a _prepare_ request to each of the nodes, asking them whether 
+they are able to commit: If all participants reply “yes”, the coordinator sends out a commit request in phase 2, and
+ the commit actually takes place, if any of the participants replies “no” the coordinator sends an abort request to 
+ all nodes in phase 2.
+
+##### A system of promises
+To guarantee that the previous 2PC actually works, the process requires:
+
+    * When the application wants to begin a distributed transaction, it requests a transaction ID from the coordinator 
+    (globally unique)
+    * The application begins a single-node transaction on each of the participants with the transaction ID
+    * When the application is ready to commit, the coordinator sends a prepare request to all participants, tagged with 
+    the global transaction ID (or an abort request if any node fails)
+    * When a participant receives the prepare request, it makes sure that it can definitely commit the transaction 
+    under all circumstances. This includes writing all transaction data to disk, and checking for any conflicts or 
+    constraint violations. The participant surrenders the right to abort the transaction, but without committing it
+    * When the coordinator has received responses to all prepare requests, it makes a definitive decision. The 
+    coordinator must write that decision to its transaction log on disk (called the commit point)
+    * Once the coordinator’s decision has been written to disk, the commit or abort request is sent to all 
+    participants. If this request fails or times out, the coordinator must retry forever until it succeed
+    
+##### Coordinator failure
+If a participant has received a prepare request and voted “yes” it can no longer abort unilaterally a transaction. If 
+the coordinator crashes or the network fails at this point, the participant can do nothing but wait (this state is 
+called in doubt or uncertain). The only way 2PC can complete is by waiting for the coordinator to recover (polling 
+other participants is not part of the protocol).
+
+#### Distributed Transactions in Practice
+Many cloud services choose not to implement distributed transactions due to the operational problems they engender. 
+Two quite different types of distributed transactions are often conflated:
+
+    * Database-internal distributed transactions: all the nodes participating in the transaction are running the same
+     database software
+    * Heterogeneous distributed transactions: the participants are two or more different technologies
+    
+##### Exactly-once message processing
+Heterogeneous distributed transactions allow diverse systems to be integrated, a distributed transaction is only 
+possible if all systems affected by the transaction are able to use the same atomic commit protocol. If all side 
+effects of processing a message are rolled back on transaction abort, then the processing step can safely be retried
+ as if nothing had happened.
+ 
+##### XA transactions
+X/Open XA (short for eXtended Architecture) is a standard for implementing two- phase commit across heterogeneous 
+technologies (it is a C API for interfacing with a transaction coordinator). XA assumes that your application uses a
+ network driver or client library to communicate with the participant databases or messaging services.
+ 
+##### Holding locks while in doubt
+Database transactions usually take a row-level exclusive lock on any rows they modify, to prevent dirty writes. The 
+database cannot release those locks until the transaction commits or aborts.
+
+##### Recovering from coordinator failure
+In practice, orphaned in-doubt transactions (transactions for which the coordinator cannot decide the outcome for 
+whatever reason) do occur, sitting forever in the database, holding locks and blocking other transactions. The only 
+way out is for an administrator to manually decide whether to commit or roll back the transactions. Many XA 
+implementations have an emergency escape hatch called heuristic decisions: allowing a participant to unilaterally 
+decide to abort or commit an in-doubt transaction without a definitive decision from the coordinator.
+
+##### Limitations of distributed transactions
+XA transactions introduces major operational problems:
+
+    * If the coordinator is not replicated but runs only on a single machine, it is a single point of failure for the 
+    entire system
+    * Many server-side applications are developed in a stateless model, with all persistent state stored in a database, 
+    since the coordinator logs are required in order to recover in-doubt transactions after a crash, those application 
+    servers are no longer stateless.
+    * Since XA needs to be compatible with a wide range of data systems, it is necessarily a lowest common denominator
+    * Distributed transactions thus have a tendency of amplifying failures, if any part of the system is broken, the 
+    transaction also fails
+    
+#### Fault-Tolerant Consensus
+A consensus algorithm must satisfy the following properties:
+
+    * Uniform agreement: No two nodes decide differently
+    * Integrity: No node decides twice
+    * Validity: If a node decides value v, then v was proposed by some node
+    * Termination: Every node that does not crash eventually decides some value
+
+Here, _termination_ is a liveness property, whereas the other three are safety properties (2PC does not meet the 
+requirements for termination), although any consensus algorithm requires at least a majority of nodes to be 
+functioning correctly in order to assure termination.
+
+##### Consensus algorithms and total order broadcast
+Most of consensus algorithms don’t directly use the formal model described before. Instead, they decide on a 
+sequence of values, which makes them total order broadcast algorithms. Total order broadcast is equivalent to 
+repeated rounds of consensus.
+
+##### Epoch numbering and quorums
+As stated before, single-leader replication needs consensus to avoid the split-brain problem, but it seems that in 
+order to elect a leader, we first need a leader (so we need to solve consensus). All of the consensus protocols 
+discussed don’t guarantee that the leader is unique. Instead, they can make a weaker guarantee: the protocols define
+ an epoch number and guarantee that within each epoch, the leader is unique.
+If there is a conflict between two different leaders in two different epochs, then the leader with the higher epoch
+ number prevails. For every decision that a leader wants to make, it must send the proposed value to the other nodes
+ and wait for a quorum of nodes to respond in favor of the proposal.
+
+##### Limitations of consensus
+Consensus algorithms are not used everywhere, because the benefits come at the cost of performance (they are a kind of 
+synchronous replication), always require a strict majority to operate, assume a fixed set of nodes that participate 
+in voting (you can't just add or remove nodes), they generally rely on timeouts to detect failed nodes (producing 
+false positive detections and affecting performance) and some consensus algorithms are particularly affected by 
+network problems.
+
+#### Membership and Coordination Services
+Projects like ZooKeeper or etcd are often described as “distributed key-value stores”, holding small amounts of data 
+that can fit entirely in memory, which is replicated across all the nodes using a fault-tolerant total order 
+broadcast algorithm. Zookeeper provides features that are particularly useful when building distributed systems:
+
+    * Linearizable atomic operations: Using an atomic compare-and-set operation, you can implement a lock (usually 
+    implemented as a lease)
+    * Total ordering of operations: fencing tokens are needed to prevent clients from conflicting with each other in 
+    the case of a process pause. ZooKeeper provides this by totally ordering all operations and giving each 
+    operation a monotonically increasing transaction ID (zxid) and version number (cversion)
+    * Failure detection: Clients maintain a long-lived session on ZooKeeper servers, and the client and server 
+    periodically exchange heartbeats to check that the other node is still alive
+    * Change notifications: A client can read locks and values that were created by another client and watch them for
+    changes
+    
+##### Service discovery
+ZooKeeper, etcd, and Consul are also often used for service discovery—that is, to find out which IP address you need
+to connect to in order to reach a particular service. Although service discovery does not require consensus, leader
+election does. For this purpose, some consensus systems support read-only caching replicas. These replicas 
+asynchronously receive the log of all decisions of the consensus algorithm, but do not actively participate in voting.
+
+##### Membership services
+Zookeeper and other similar systems can be seen as a _membership service_, which determines which nodes are currently 
+active and live members of a cluster. If you couple failure detection with consensus, nodes can come to an agreement 
+about which nodes should be considered alive or not. 
+
+## Chapter 10: Batch Processing<a name="Chapter10"></a>
