@@ -19,7 +19,7 @@
 The three concerns that are important in most software systems are:
 
     * Reliability: The system should continue to work correctly (even performant) even in the face of adversity 
-    * Scalability: Scalability is the term we use to describe a system’s ability to cope with increased load
+    * Scalability: Scalability is the term we use to describe a system's ability to cope with increased load
     * Maintainability: Different people should be able to work productively on the system
     
 ### Reliability
@@ -136,14 +136,14 @@ Usually highly interconnected data is more efficiently represented with the rela
 No schema means that arbitrary keys and values can be added to a document, and when reading, clients have no guarantees
  as to what fields the documents may contain. Document databases has some kind of implicit schema, but it is not 
  enforced by the database (schema-on-read).
-The schema-on-read approach is advantageous if the items in the collection don’t all have the same structure, which 
+The schema-on-read approach is advantageous if the items in the collection don't all have the same structure, which 
 could happen due to have many different types of objects (and hence is not practical to put each type in its own 
 table) or the structure of the table is determined by external systems.
 
 ##### Data locality for queries
 If your application often needs to access an entire document, there is a performance advantage to this storage locality.
 The locality advantage only applies if you need large parts of the document at the same time. Updates usually requires
- to write the whole document (only modifications that don’t change the encoded size of a document can easily be 
+ to write the whole document (only modifications that don't change the encoded size of a document can easily be 
  performed in place), it is generally recommended that you keep documents fairly small and avoid writes that increase 
  the size of a document.
  
@@ -219,7 +219,7 @@ CREATE
 ```
 
 Which allow us to traverse the graph to ask questions like "give me all the people that were born in Idaho". As it is a
- declarative query language, you don’t need to specifyexecution details when writing the query (chosen by the query 
+ declarative query language, you don't need to specifyexecution details when writing the query (chosen by the query 
  optimizer). An example of that type of query is:
  
  ```text
@@ -246,7 +246,7 @@ The Resource Description Framework (RDF) was intended as a mechanism for differe
 ##### The RDF data model
 On the RDF data model, the subject, predicate, and object of a triple are often URIs (like <http://my-company
 .com/namespace#lives_in> instead of WITHIN). The reasoning behind this  design is that you should be able to combine 
-your data with someone else’s data, and if they attach a different meaning to the word within or lives_in, you won’t
+your data with someone else's data, and if they attach a different meaning to the word within or lives_in, you won't
  get a conflict because their predicates are. Something like avoiding collisions by using different namespaces.
  
 ##### The SPARQL query language
@@ -261,11 +261,11 @@ SELECT ?personName WHERE {
 }
 ```
 
-Because RDF doesn’t distinguish between properties and edges but just uses predicates for both, you can use the 
+Because RDF doesn't distinguish between properties and edges but just uses predicates for both, you can use the 
 same syntax for matching properties.
 
 #### The Foundation: Datalog
-Datalog’s data model is similar to the triple-store model. Instead of writing a triple as (subject, predicate, object), 
+Datalog's data model is similar to the triple-store model. Instead of writing a triple as (subject, predicate, object), 
 we write it as predicate(subject, object). In Datalog, we define rules that tell the database about new predicates. 
 These predicates aren't triples stored in the database, but instead they are derived from data or from other rules. 
 Rules can refer to other rules.
@@ -377,7 +377,7 @@ LSM-trees can be compressed better, and thus often produce smaller files on disk
 
 ##### Downsides of LSM-trees
 A downside of log-structured storage is that the compaction process can sometimes interfere with the performance of 
-ongoing reads and writes. Also, the disk’s finite write bandwidth needs to be shared between the initial write (logging 
+ongoing reads and writes. Also, the disk's finite write bandwidth needs to be shared between the initial write (logging 
 and flushing a memtable to disk) and the compaction threads running in the background, the bigger the database gets, 
 the more disk bandwidth is required for compaction.  
 In B-trees, each key exists in exactly one place in the index, whereas a log-structured storage engine may have 
@@ -396,7 +396,7 @@ The heap file avoids duplicating data when multiple secondary indexes are presen
 location in the heap file, and the actual data is kept in one place.
 In some cases, it can be desirable to store the indexed row directly within an index, known as a clustered index 
 (storing all row data within the index).
-_Covering index_ or _index with included columns_ stores some of a table’s columns within the index, and some are 
+_Covering index_ or _index with included columns_ stores some of a table's columns within the index, and some are 
 references to other locations.
 
 ##### Multi-column indexes
@@ -409,7 +409,7 @@ ignore grammatical variations of words, and to search for occurrences of words n
  and support various other features that depend on linguistic analysis of the text.
 
 ##### Keeping everything in memory
-Many datasets are simply not that big, so it’s quite feasible to keep them entirely in memory, potentially 
+Many datasets are simply not that big, so it's quite feasible to keep them entirely in memory, potentially 
 distributed across several machines. When an in-memory database is restarted, it needs to reload its state, either 
 from disk or over the network from a replica. The performance advantage of in-memory databases is due to not having 
 to deal with overheads of encoding in-memory data structures in a form that can be written to disk.
@@ -468,7 +468,7 @@ An update-in-place approach, like B-trees use, is not possible with compressed c
 row in the middle of a sorted table, you would most likely have to rewrite all the column files. As rows are 
 identified by their position within a column, the insertion has to update all columns consistently. An option is to 
 use LSM-trees. All writes first go to an in-memory store, where they are added to a sorted structure and prepared 
-for writing to disk. It doesn’t matter whether the in-memory store is row-oriented or column-oriented. When enough 
+for writing to disk. It doesn't matter whether the in-memory store is row-oriented or column-oriented. When enough 
 writes have accumulated, they are merged with the column files on disk and written t o new files in bulk. Queries 
 need to examine both the column data on disk and the recent writes in memory, and combine the two (done by the query 
 optimizer).
@@ -507,7 +507,7 @@ JSON, XML, and CSV are textual formats, that comes with some remarkable problems
 
     * Lot of ambiguity around the encoding of numbers: XML doesn't distinguish between strings containing numbers and
      numbers, and JSON can't specify the precission of numbers
-    * JSON and XML have good support for Unicode character strings, but they don’t support binary strings. These 
+    * JSON and XML have good support for Unicode character strings, but they don't support binary strings. These 
     strings are usually encoded using Base64, which increases the data size
     * There is optional schema support for XML and JSON, but it is complicated to implement
     * CSV does not have any schema, up to the application to interpret the data. Additions are complicated to handle 
@@ -525,12 +525,12 @@ In the thrift binary protocol, the data contains type, length of data, the data 
 tags (instead of field names), which are numbers identified the field names in the schema definition (like aliases). 
 In the thrift compact protocol, the field type and tag numbers are combined in one, and fields are encoded using 
 variable length integers (the top bytes are used to indicate whether there are still more bytes to come).
-Protocol Buffers is very similar to Thrift’s CompactProtocol.
+Protocol Buffers is very similar to Thrift's CompactProtocol.
 
 ##### Field tags and schema evolution
 In Thrift and protocol buffers each field is identified by its tag number and annotated with a datatype, if a field 
 value is not set, it is simply omitted from the encoded record. You can change the name of a field in the schema, 
-but you cannot change a field’s tag. You can add new fields to the schema, provided that you give each field a new 
+but you cannot change a field's tag. You can add new fields to the schema, provided that you give each field a new 
 tag number (Old code would skip a field if it has a tag that doesn't recognize). For backwards compatibility, if a 
 new field is added, can't be made mandatory as it would invalidate the old schemas (or have a default value).
 
@@ -543,25 +543,25 @@ IDL) intended for human editing, and one (based on JSON) that is more easily mac
 together, to parse the binary data, you go through the fields in the order that they appear in the schema and use the
  schema to tell you the datatype of each field (schema mismatch would result in invalid data read).
  
-##### The writer’s schema and the reader’s schema
+##### The writer's schema and the reader's schema
 With Avro, when an application wants to encode some data, it encodes the data using whatever version of the schema 
-it knows about, which might be compiled into the application. This is known as the writer’s schema. On data decoding,
+it knows about, which might be compiled into the application. This is known as the writer's schema. On data decoding,
  it needs the data to be in some schema, known as reader's schema, which don't have to be the same than the writer's 
- schema (but needs to be compatible). The Avro library resolves the differences by looking at the writer’s schema and 
- the reader’s schema side by side and translating the data from the writer’s schema into the reader’s schema. 
+ schema (but needs to be compatible). The Avro library resolves the differences by looking at the writer's schema and 
+ the reader's schema side by side and translating the data from the writer's schema into the reader's schema. 
  
 ##### Schema evolution rules
 You may only add or remove a field that has a default value. In Avro, if you want to allow a field to be null, you 
 have to use a _union type_: _union { null, long, string } field_; indicates that _field_ can be a number, or a string, 
 or null. Changing the datatype of a field is possible, provided that Avro can convert the type.
 
-##### But what is the writer’s schema?
+##### But what is the writer's schema?
 The schema of an Avro file can't be included in every record, therefore:
 
     * Large file with lots of records: Usually the schema is at the beginning of the file. Avro specifies a file 
     format (object container file) to do this
     * Database with individually written records: different records may be written at different points in time using
-     different writer’s schemas. A version number indicating the schema is included at the beginning of each record
+     different writer's schemas. A version number indicating the schema is included at the beginning of each record
     * Sending records over a network connection: Two endpoints in a communication can negotiate the schema version on
      connection setup (like in the Avro RPC protocol)
 
@@ -594,7 +594,7 @@ databases. Older clients usually left newly added fields untouched.
 ##### Different values written at different times
 When you deploy a new version of your application, you may entirely replace the old version with the new version 
 which is not true of database contents, this observation is sometimes summed up as _data outlives code_. Rewriting 
-data into a new schema is certainly possible, but it’s an expensive thing to do on a large dataset, simple schema 
+data into a new schema is certainly possible, but it's an expensive thing to do on a large dataset, simple schema 
 changes, such as adding a new column with a null default value are supported in most relational databases.
 
 ##### Archival Storage
@@ -646,7 +646,7 @@ needs to be maintained for a long time, perhaps indefinitely. For RESTful APIs, 
 version number in the URL or in the HTTP Accept header.
 
 #### Message-Passing Dataflow
-Asynchronous message-passing systems are similar to RPC in that a client’s request is delivered to another process 
+Asynchronous message-passing systems are similar to RPC in that a client's request is delivered to another process 
 with low latency and similar to databases in that the message is not sent via a direct network connection, but goes 
 via an intermediary called a message broker, which stores the message temporarily. This brings some advantages:
 
@@ -662,7 +662,7 @@ The sender doesn't usually expect to receive a reply.
 Message brokers are used as follows: one process sends a message to a named queue or topic, and the broker ensures 
 that the message is delivered to one or more consumers of or subscribers to that queue or topic. A consumer may 
 itself publish messages to another topic or to a reply queue that is consumed by the sender of the original message. 
-Message brokers typically don’t enforce any particular data model
+Message brokers typically don't enforce any particular data model
 
 ##### Distributed actor frameworks
 The actor model is a programming model for concurrency in a single process. The logic is encapsulated in the actors, 
@@ -699,7 +699,7 @@ leader waits until the follower have confirmed the write before reporting succes
 #### Setting Up New Followers
 The process of setting up a new follower looks like this:
 
-    1. Take a consistent snapshot of the leader’s database at some point in time
+    1. Take a consistent snapshot of the leader's database at some point in time
     2. Copy the snapshot to the new follower node
     3. After the copy, request all the changes since the snapshot was taken (snapshot is associated with an exact 
     position on the replication log)
@@ -818,7 +818,7 @@ _master–master_ or _active/active_ replication), each leader simultaneously ac
 This configuration rarely makes sense within a single datacenter, but it might make sense in certain situations:
 
 ##### Multi-datacenter operation
-In a multi-leader configuration, you can have a leader in each datacenter: each datacenter’s leader replicates its 
+In a multi-leader configuration, you can have a leader in each datacenter: each datacenter's leader replicates its 
 changes to the leaders in other datacenters. _Single-leader_ and _multi-leader_ configurations in multidatacenter 
 deployment differs in:
 
@@ -938,19 +938,19 @@ Due to all of the above, stronger guarantees generally require transactions or c
 
 ##### Monitoring staleness
 For leader-based replication, writes are applied to the leader and to followers in the same order, and each node has
- a position in the replication log. By subtracting a follower’s current position from the leader’s current position,
+ a position in the replication log. By subtracting a follower's current position from the leader's current position,
  you can measure the amount of replication lag.
 In systems with leaderless replication, if the database only uses read repair (no anti-entropy), there is no limit to
  how old a value might be.
 
 #### Sloppy Quorums and Hinted Handoff
 Databases with leader‐less replication are appealing for use cases that require high availability and low latency, and 
-that can tolerate occasional stale reads. In a large cluster it’s likely that a client can connect to some database 
+that can tolerate occasional stale reads. In a large cluster it's likely that a client can connect to some database 
 nodes during a network interruption, just not to the nodes that it needs to assemble a quorum for a particular value.
  In that case, database designers face a trade-off:
    
     * Is it better to return errors to all requests for which we cannot reach a quorum of w or r nodes
-    * It accepts writes anyway, and write them to some nodes that are reachable but aren’t among the n nodes
+    * It accepts writes anyway, and write them to some nodes that are reachable but aren't among the n nodes
      on which the value usually lives
      
 The latter is called _sloppy quorum_, once the network interruption is fixed, any writes that one node temporarily 
@@ -1019,11 +1019,11 @@ Keys can be ordered within partitions. This approach can lead to hotspots
 
 #### Partitioning by Hash of Key
 A hash function is used to determine the partition for a given key. The hash function need not be cryptographically 
-strong, you can assign each partition a range of hashes, and every key whose hash falls within a partition’s range 
+strong, you can assign each partition a range of hashes, and every key whose hash falls within a partition's range 
 will be stored in that partition.
 A table in Cassandra can be declared with a compound primary key consisting of several columns. Only the first part 
 of that key is hashed to determine the partition, but the other columns are used as a concatenated index for sorting
- the data in Cassandra’s SSTables
+ the data in Cassandra's SSTables
  
 #### Skewed Workloads and Relieving Hot Spots
 In the extreme case where all reads and writes are for the same key, you still end up with all requests being routed 
@@ -1032,8 +1032,8 @@ known to be very hot, a simple technique is to add a random number to the beginn
 would have to be done around combining those keys and keeping track which keys were splitted in that way.
 
 ### Partitioning and Secondary Indexes
-A secondary index usually doesn’t identify a record uniquely but rather is a way of searching for occurrences of a 
-particular value. The problem with secondary indexes is that they don’t map neatly to partitions.
+A secondary index usually doesn't identify a record uniquely but rather is a way of searching for occurrences of a 
+particular value. The problem with secondary indexes is that they don't map neatly to partitions.
 
 #### Partitioning Secondary Indexes by Document
 If you have a list of documents distributed in partitions representing cars, and you want to allow users of that 
@@ -1045,7 +1045,7 @@ sent to every partition and combined back (known as _scatter/gather_), and they 
 
 #### Partitioning Secondary Indexes by Term
 We can also construct a global index that covers data in all partitions (namely _term index_). A global index must
- also be partitioned, but it can be partitioned differently from the primary key index: the term we’re looking for 
+ also be partitioned, but it can be partitioned differently from the primary key index: the term we're looking for 
  determines the partition of the index, we can partition the index by the term itself, or using a hash of the term.
  It is more efficient than the scatter/gather approach as only one partition is queried, the downside of a global 
  index is that writes are slower and more complicated (a write on a document needs to modify several partitions 
@@ -1156,7 +1156,7 @@ translated as "I do as much as I can, but on error I won't undo something done".
  have side effects even if it is aborted (like sending an email).
  
 ### Weak Isolation Levels
-If two transactions don’t touch the same data, they can safely be run in parallel, because neither depends on the other.
+If two transactions don't touch the same data, they can safely be run in parallel, because neither depends on the other.
 Serializable isolation means that the database guarantees that transactions have the same effect as if they ran serially
  but this has a performance cost, therefore some systems offers a _weaker_ form of isolation.
  
@@ -1205,9 +1205,9 @@ Transaction IDs are used to decide which objects it can see and which are invisi
     transactions have committed
     4. All other writes are visible to the application's queries
     
-A transaction is visible if at the time when the reader’s transaction started, the transaction that created the object 
+A transaction is visible if at the time when the reader's transaction started, the transaction that created the object 
 had already committed or the object is not marked for deletion (the transaction that requested deletion 
-had not yet committed at the time when the reader’s transaction started).
+had not yet committed at the time when the reader's transaction started).
 
 ##### Indexes and snapshot isolation
 Several implementations to solve this problem exists, from indexes simply point to all versions of an object to 
@@ -1225,7 +1225,7 @@ transaction can read it until the update has been applied (called cursor stabili
 all atomic operations to be executed on a single thread.
 
 ##### Explicit locking
-If the database’s built-in atomic operations don’t provide the necessary functionality, is for the application to 
+If the database's built-in atomic operations don't provide the necessary functionality, is for the application to 
  explicitly lock objects that are going to be updated. This is done by:
  
 ```sql
@@ -1275,7 +1275,7 @@ The usual pattern for write skew is as follows:
     4. The effect of this write changes the precondition of the decision of step 2
     
 The problem is that if the query in step 1 doesn't return any rows cause we are checking for the absence of them, 
-SELECT FOR UPDATE can’t attach locks to anything (calling _phantoms_).
+SELECT FOR UPDATE can't attach locks to anything (calling _phantoms_).
 
 ##### Materializing conflicts
 A possible solution to avoid phantoms we can artificially introduce a lock object into the database. For example 
@@ -1319,7 +1319,7 @@ cross-partition transactions are possible but there is a hard limit to the exten
 
 #### Two-Phase Locking (2PL)
 Two-phase allows several transactions to concurrently read the same object as long as nobody is writing to it, but 
-as soon as anyone wants to write an object, exclusive access is required. Writers don’t just block other writers they
+as soon as anyone wants to write an object, exclusive access is required. Writers don't just block other writers they
  also block readers and vice versa.
  
 ##### Implementation of two-phase locking
@@ -1360,7 +1360,7 @@ predicate locking. Instead of looking object room 1 between 1 and 3pm, you lock 
 approximation of the search condition would be attached to one of the search indexes
 
 #### Serializable Snapshot Isolation (SSI)
-2PL don’t perform well and serial execution don’t scale well, _serializable snapshot isolation (SSI)_ provides full 
+2PL don't perform well and serial execution don't scale well, _serializable snapshot isolation (SSI)_ provides full 
 serializability, but has only a small performance penalty compared to snapshot isolation.
 
 ##### Pessimistic versus optimistic concurrency control
@@ -1376,7 +1376,7 @@ result (the premise) means that writes in that transaction may be invalid.
 
 ##### Detecting stale multi-version concurrency control (MVCC) reads
 When a transaction reads from a consistent snapshot in an MVCC database, it ignores writes that were made by any 
-other transactions that hadn’t yet committed at the time when the snapshot was taken. When the transaction wants 
+other transactions that hadn't yet committed at the time when the snapshot was taken. When the transaction wants 
 to commit, the database checks whether any of the ignored writes have now been committed. If so, the transaction 
 must be aborted.
 
@@ -1451,7 +1451,7 @@ Modern computers have at least two different kinds of clocks: a time-of-day cloc
     but cannot cause the monotonic clock to jump forward or backward
     
 In a distributed system, using a monotonic clock for measuring elapsed time (e.g., timeouts) is usually fine, because it 
- doesn't assume any synchronization between different nodes’ clocks and is not sensitive to slight inaccuracies of 
+ doesn't assume any synchronization between different nodes' clocks and is not sensitive to slight inaccuracies of 
  measurement.
  
 ### Clock Synchronization and Accuracy
@@ -1503,8 +1503,8 @@ requires a GC pause, the application can stop sending new requests to that node,
 outstanding requests, or planned restart of process (and thus cleaning of long live objects) can be scheduled.
 
 ## Knowledge, Truth, and Lies
-A node in the network can only make guesses based on the messages it receives (or doesn’t receive) via the network. 
-A node can only find out what state another node is in by exchanging messages with it. If a remote node doesn’t 
+A node in the network can only make guesses based on the messages it receives (or doesn't receive) via the network. 
+A node can only find out what state another node is in by exchanging messages with it. If a remote node doesn't 
 respond, there is no way of knowing what state it is in. In a distributed system, we can state the assumptions we 
 are making about the behavior (the system model) and design the actual system in such a way that it meets those 
 assumptions. 
@@ -1525,7 +1525,7 @@ belief of being “the chosen one” cannot disrupt the rest of the system. A si
  number.
  
 ### Byzantine Faults
-If a node deliberately wanted to subvert the system’s guarantees, it can do so by sending messages with a fake fencing
+If a node deliberately wanted to subvert the system's guarantees, it can do so by sending messages with a fake fencing
  token. A Byzantine fault occurs when a node claim to have received a particular message when in fact it didn't and 
  systems can be Byzantine fault-tolerant. Most Byzantine fault-tolerant algorithms require a supermajority of more than 
  two-thirds of the nodes to be functioning correctly.
@@ -1591,7 +1591,7 @@ doesn't come from a stale cache or replica.
 
 #### What Makes a System Linearizable?
 In a linearizable system we imagine that there must be some point in time (between the start and end of the write 
-operation) at which the value written atomically flips from one value to another. Thus, if one client’s read returns 
+operation) at which the value written atomically flips from one value to another. Thus, if one client's read returns 
 the new value, all subsequent reads must also return the new value, even if the write operation has not yet completed.
 Once a new value has been written or read, all subsequent reads see the value that was written, until it is 
 overwritten again.
@@ -1784,7 +1784,7 @@ To guarantee that the previous 2PC actually works, the process requires:
     constraint violations. The participant surrenders the right to abort the transaction, but without committing it
     * When the coordinator has received responses to all prepare requests, it makes a definitive decision. The 
     coordinator must write that decision to its transaction log on disk (called the commit point)
-    * Once the coordinator’s decision has been written to disk, the commit or abort request is sent to all 
+    * Once the coordinator's decision has been written to disk, the commit or abort request is sent to all 
     participants. If this request fails or times out, the coordinator must retry forever until it succeed
     
 ##### Coordinator failure
@@ -1848,14 +1848,14 @@ requirements for termination), although any consensus algorithm requires at leas
 functioning correctly in order to assure termination.
 
 ##### Consensus algorithms and total order broadcast
-Most of consensus algorithms don’t directly use the formal model described before. Instead, they decide on a 
+Most of consensus algorithms don't directly use the formal model described before. Instead, they decide on a 
 sequence of values, which makes them total order broadcast algorithms. Total order broadcast is equivalent to 
 repeated rounds of consensus.
 
 ##### Epoch numbering and quorums
 As stated before, single-leader replication needs consensus to avoid the split-brain problem, but it seems that in 
 order to elect a leader, we first need a leader (so we need to solve consensus). All of the consensus protocols 
-discussed don’t guarantee that the leader is unique. Instead, they can make a weaker guarantee: the protocols define
+discussed don't guarantee that the leader is unique. Instead, they can make a weaker guarantee: the protocols define
  an epoch number and guarantee that within each epoch, the leader is unique.
 If there is a conflict between two different leaders in two different epochs, then the leader with the higher epoch
  number prevails. For every decision that a leader wants to make, it must send the proposed value to the other nodes
@@ -1894,4 +1894,247 @@ Zookeeper and other similar systems can be seen as a _membership service_, which
 active and live members of a cluster. If you couple failure detection with consensus, nodes can come to an agreement 
 about which nodes should be considered alive or not. 
 
+
 ## Chapter 10: Batch Processing<a name="Chapter10"></a>
+We can distinguish three different types of systems:
+
+     * Services (online systems): A service waits for a request or instruction from a client and sends a response back
+     * Batch processing systems (offline systems): system takes a large amount of input data, process it, and 
+     produces some output data
+     * Stream processing systems (near-real-time systems): somewhere between online and offline/batch processing, 
+     consumes inputs (events) and produces outputs shortly after the input is received
+     
+### Batch Processing with Unix Tools
+#### Simple Log Analysis
+It is possible to build a custom log analysis program by using unix tools and chaining different operations together.
+
+##### Chain of commands versus custom program
+Instead of the chain of Unix commands, you could write similar things with other program languages, but there are 
+differences in readibility and execution times (sorting versus in-memory aggregation of results).
+
+##### Sorting versus in-memory aggregation
+If a job's working set is larger than the available memory, the sorting approach has the advantage that it can make
+ efficient use of disks, in a similar way to SSTables vs LSM-Trees.
+ 
+#### The Unix Philosophy
+The Unix philosophy is a set of design principles that became popular among the developers and users of Unix:
+
+    * Make each program do one thing well. To do a new job, build afresh instead of adding new “features”
+    * Expect the output of every program to become the input to another. Don't clutter output with extraneous 
+    information. Avoid stringently columnar or binary input formats. Don't insist on interactive input
+    * Design and build software, even operating systems, to be tried early, ideally within weeks. Don't hesitate to 
+    throw away the clumsy parts and rebuild them
+    * Use tools in preference to unskilled help to lighten a programming task, even if you have to detour to build the
+     tools and expect to throw some of them out after you've finished using them
+     
+##### A uniform interface
+If you expect the output of one program to become the input to another program, a compatible interface must be set (a
+file in unix programs or more precisely a file descriptor). By convention, many (but not all) Unix programs treat 
+this sequence of bytes as ASCII text.
+
+##### Separation of logic and wiring
+Unix tools is their use of standard input (stdin) and standard output (stdout) which defaults to keyboard and screen 
+respectively. Separating the input/output wiring from the program logic makes it easier to compose small tools into 
+bigger systems.
+
+##### Transparency and experimentation
+Key concepts of the unix programs:
+
+    * The input files to Unix commands are normally treated as immutable
+    * You can end the pipeline at any point, pipe the output into less, validate the output for debugging purposes
+    * You can write the output of one pipeline stage to a file and use that file as input to the next stage
+    
+The biggest limitation of Unix tools is that they run only on a single machine
+
+### MapReduce and Distributed Filesystems
+MapReduce is a bit like unix tools, with some differences. In MR files are written once, in a sequential fashion. In MR 
+read and write files happens on a distributed filesystem called HDFS (Hadoop Distributed File System), which is based
+ on a share-nothing architecture. HDFS consists of a daemon process running on each machine, exposing a network 
+ service that allows other nodes to access files stored on that machine with a central server called the NameNode 
+ keeps track of which file blocks are stored on which machine.
+ 
+#### MapReduce Job Execution
+To create a MapReduce job, you need to implement two callback functions, the map‐ per and reducer:
+
+    * Mapper: called once for every input record, and its job is to extract the key and value from the input record
+    * Reducer:  takes the key-value pairs produced by the mappers, collects all the values belonging to the same 
+    key, and calls the reducer with an iterator over that collection of values
+
+If you need a second sorting stage, you can use the output of a job as the input for another.
+
+##### Distributed execution of MapReduce
+Unlike Unix, MapReduce can parallelize a computation across many machines, without you having to write code to 
+explicitly handle the parallelism. The MapReduce framework first copies the code to the appropriate machines if it is
+ not already there, and then starts the map task passing one record at a time to the mapper callback. The output is a
+  key-value pair and must be sorted in stages before the reduce phase.
+Each map task partitions its output by reducer, based on the hash of the key. Each of these partitions is written to 
+a sorted file on the mapper's local disk. Whenever a mapper finishes reading its input file and writing its sorted 
+output files, the MapReduce scheduler notifies the reducers that they can start fetching the output files from that 
+mapper. The reducers connect to each of the mappers and download the files of sorted key-value pairs for their 
+partition (this is known as the _shuffle_), merging the files from the mappers together preserving the order. The 
+output records from the reducer are written to a file on the distributed filesystem.
+
+##### MapReduce workflows
+It is very common for MapReduce jobs to be chained together into workflows since the range of problems you can solve 
+with a single MapReduce job is limited (this chaining is done implicitly by directory name). A batch job’s output is
+ only considered valid when the job has completed successfully.
+
+#### Reduce-Side Joins and Grouping
+When we talk about joins in the context of batch processing, we mean resolving all occurrences of some association 
+within a dataset.
+
+##### Example: analysis of user activity events
+In order to achieve good throughput in a batch process, the computation must be (as much as possible) local to one 
+machine. Making random-access requests over the network for every record you want to process is too slow.
+
+##### Sort-merge joins
+When the MapReduce framework partitions the mapper output by key and then sorts the key-value pairs, all record with 
+the same ID become adjacent to each other in the reducer input. The reducer processes all of the records for a 
+particular ID in one go, it only needs to keep one record in memory  at any one time, and it never needs to make any 
+requests over the network. This algorithm is known as a sort-merge  join, since mapper output is sorted by key, and 
+the reducers then merge together the sorted lists of records from both sides of the join. 
+
+##### Bringing related data together in the same place
+One way of looking at this architecture is that mappers “send messages” to the reducers. MapReduce handles all network 
+communication, it also shields the application code from having to worry about partial failures, it transparently 
+retries failed tasks without affecting the application logic.
+
+##### Handling skew
+Keys with a disproportionately number of related records are known as _linchpin objects_ or _hot keys_. A MapReduce 
+job is only complete when all of its mappers and reducers have completed,  jobs must wait for the slowest reducer to 
+complete before they can start. Load (randomize the hot keys) should be distributed to avoid skewed jobs.
+
+#### Map-Side Joins
+In _map-side_ joins, there are no reducers and no sorting. Mappers reads one input file block from the distributed 
+filesystem and writes one output file to the filesystem.
+
+##### Broadcast hash joins
+When a large dataset is joined with a small dataset, the mapper loads the small dataset in memory and does the join 
+by doing a lookup with the key on the hash table it uses to store the dataset. This is called a _broadcast hash join_.
+An alternative is to store the small join input in a read-only index on the local disk, without actually requiring 
+the dataset to fit in memory.
+
+##### Partitioned hash joins
+If the inputs to the map-side join are partitioned in the same way, then the hash join approach can be applied to 
+each partition independently. This approach only works if both of the join’s inputs have the same number of 
+partitions (known as _bucketed map joins_ in Hive). 
+
+##### Map-side merge joins
+If the input datasets are not only partitioned in the same way, but also sorted based on the same key, the mapper 
+can perform the same merging operation that would normally be done by a reduce.
+
+##### MapReduce workflows with map-side joins
+The output of a reduce-side join is partitioned and sorted by the join key, the output of a map-side join is 
+partitioned and sorted in the same way as the large input (which is important when optimizing join strategies).
+
+#### The Output of Batch Workflows
+##### Building search indexes
+A batch process is an effective way of building the indexes if you need to perform a full-text search over a fixed 
+set of documents: the mappers partition the set of documents as needed, each reducer builds the index for its 
+partition, and the index files are written to the distributed filesystem. Index are immutable, so a reprocess is 
+needed if anyone changes (although incremental indexes can be build using segment files and compaction).
+
+##### Key-value stores as batch process output
+The output of a map reduce job is often some kind of database to be queried from a web application. Writing from the 
+batch job directly to the database server, one record at a time is a bad idea because the time it takes to do the 
+round network trip, the taks run in parallel can overwhelm the database and there might be partial results if a job 
+fails. It is better to write the results to a file, and then load it using a bulk process.
+
+##### Philosophy of batch process outputs
+The handling of output from MapReduce jobs should not produce side effects. By treating inputs as immutable and avoiding
+ side effects (such as writing to external data‐ bases), batch jobs achieve good performance and are easier to maintain.
+
+#### Comparing Hadoop to Distributed Databases
+The biggest difference is that MPP databases focus on parallel execution of analytic SQL queries on a cluster of 
+machines, while the combination of MapReduce and a distributed filesystem provides something much more like a 
+ general-purpose operating system that can run arbitrary programs.
+
+##### Diversity of storage
+Databases require you to structure data according to a particular model, whereas files in a distributed filesystem 
+are just byte sequences, which can be written using any data model and encoding. Hadoop has often been used for 
+implementing ETL processes: data from transaction processing systems is dumped into the distributed filesystem in 
+some raw form, and then MapReduce jobs are written to clean up that data, transform it into a relational form, and 
+import it into an MPP data warehouse for analytic purposes.
+
+##### Diversity of processing models
+While MPP databases are monolithic, tightly integrated pieces of software providing very good performance on the 
+types of queries for which it is designed, not all kinds of processing can be sensibly expressed as SQL queries. The 
+Hadoop ecosystem includes both random-access OLTP databases such as HBase and MPP-style analytic databases such as 
+Impala (appart of the MapReduce model).
+
+##### Designing for frequent faults
+MapReduce and MPPs differs also on the handling of faults and the use of memory and disk. Most MPP databases abort 
+the entire query if a node crashes, and either let the user resubmit the query or automatically run it again. MPP 
+databases also prefer to keep as much data as possible in memory. MapReduce is more appropriate for larger jobs that 
+process so much data and run for such a long time that they are likely to experience at least one task failure along
+ the way (rerunning the entire job due to a single task failure would be wasteful), this is designed in this way 
+ because the freedom to arbitrarily terminate processes enables better resource utilization in a computing cluster.
+
+### Beyond MapReduce
+Various higher-level programming models were created as abstractions on top of MapReduce.
+
+#### Materialization of Intermediate State
+If the output of one job is only ever used as input to one other job, the files on the distributed filesystem are 
+simply intermediate state. The process of writing out this intermediate state to files is called materialization. The
+ downside of this approach is:
+ 
+    * A MapReduce job can only start when all tasks in the preceding jobs, whereas processes connected by a Unix pipe 
+    starts at the same time, with output being consumed as soon as it is produced. Skew tasks slows the whole processing
+    * Mappers are often redundant: they just read back the same file that was just written by a reducer, and 
+     prepare it for the next stage of partitioning and sorting
+    * Storing intermediate state in a distributed filesystem means those files are replicated across several nodes
+    
+##### Dataflow engines
+In order to fix these problems, several new execution engines for distributed batch computations were developed (Tez,
+ Spark, Flink), and they handle an entire workflow as one job and are known as _dataflow engines_. These dataflow 
+ engines connects the different stages of a job through operators, they do so by:
+ 
+    * Repartition and sorting records by key, which enables sort-merge joins and grouping like in MapReduce
+    * Taking several inputs and partitioning them in the same way, but skiping the sorting.
+    * For broadcast hash joins, the same output from one operator can be sent to all partitions of the join operator
+    
+This model:
+ 
+    * Skips the sorting if it is not needed
+    * Removes work done by a mapper it it can be incorporated into the preceding reduce operator
+    * The scheduler has an overview of what data is required where, so it can make locality optimizations
+    * Saves HDFS I/O time if the intermediate data to be kept in memory or written to local disk
+    * Operators can start executing as soon as their input is ready
+    * Existing Java Virtual Machine (JVM) processes can be reused to run new operators
+    
+##### Fault tolerance
+Materializing results makes fault tolerance fairly easy to implement. Spark, Flink, and Tez recomputes the intermediate 
+state if the machine is lost (the framework must keep track of how a given piece of data was computed). When recomputing
+data, it is important to know whether the computation is deterministic, which matters if some of the lost data has 
+already been sent to downstream operators (in this case the downstream operator is killed also).
+
+#### Graphs and Iterative Processing
+Machine learning applications such as recommendation engines often needs to look at graph models in a batch processing 
+context. This needs an iterative style that can't be implemented with MapReduce. This is usually done with an 
+external scheduler that runs a batch process to calculate one step of the algorithm, then when the batch process 
+completes the scheduler checks whether it has finished and rerun the batch again if not.
+
+##### The Pregel processing model
+The _bulk synchronous parallel (BSP)_ model of computation: one vertex can “send a message” to another vertex, and 
+typically those messages are sent along the edges in a graph (Pregel model). In the Pregel model, a vertex remembers 
+its state in memory from one iteration to the next, so the function only needs to process new incoming messages.
+
+##### Fault tolerance
+Pregel allows messages to be batched with less waiting for communication. Pregel model guarantees that all messages 
+sent in one iteration are delivered in the next iteration, the prior iteration must completely finish, and all of its
+ messages must be copied over the network, before the next one can start.
+ 
+##### Parallel execution
+A vertex does not need to know on which physical machine it is executing; when it sends messages to other vertices, 
+it simply sends them to a vertex ID, so the framework may partition the graph in arbitrary ways. In practice, no 
+attempt to group related vertices together is made, resulting in a lot of cross-machine communication overhead and 
+big intermediate states.
+
+#### High-Level APIs and Languages
+##### The move toward declarative query languages
+Hive, Spark, and Flink have cost-based query optimizers so the framework can analyze the properties of the join inputs 
+and automatically decide which of the aforementioned join algorithms would be most suitable for the task at hand. If 
+joins are specified in a declarative way, the application simply states which joins are required.
+
+ 
+## Chapter 11: Stream Processing<a name="Chapter11"></a>
