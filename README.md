@@ -1976,7 +1976,7 @@ output records from the reducer are written to a file on the distributed filesys
 
 ##### MapReduce workflows
 It is very common for MapReduce jobs to be chained together into workflows since the range of problems you can solve 
-with a single MapReduce job is limited (this chaining is done implicitly by directory name). A batch job’s output is
+with a single MapReduce job is limited (this chaining is done implicitly by directory name). A batch job's output is
  only considered valid when the job has completed successfully.
 
 #### Reduce-Side Joins and Grouping
@@ -2016,7 +2016,7 @@ the dataset to fit in memory.
 
 ##### Partitioned hash joins
 If the inputs to the map-side join are partitioned in the same way, then the hash join approach can be applied to 
-each partition independently. This approach only works if both of the join’s inputs have the same number of 
+each partition independently. This approach only works if both of the join's inputs have the same number of 
 partitions (known as _bucketed map joins_ in Hive). 
 
 ##### Map-side merge joins
@@ -2212,7 +2212,7 @@ log-based approach works very well.
 
 ##### Consumer offsets
 The broker does not need to track acknowledgments for every single message since all messages with an offset less 
-than a consumer’s current offset have already been processed (similar to the log sequence number that in 
+than a consumer's current offset have already been processed (similar to the log sequence number that in 
 single-leader database replication).
 
 ##### Disk space usage
@@ -2220,7 +2220,7 @@ To reclaim disk space, the log is actually divided into segments, which are dele
 
 ##### Replaying old messages
 In log-based message brokers, The only side effect of processing is that the consumer offset moves forward. But the 
-offset is under the consumer’s control, so it can easily be manipulated if necessary (useful for reprocessing purposes).
+offset is under the consumer's control, so it can easily be manipulated if necessary (useful for reprocessing purposes).
 
 ### Databases and Streams
 #### Keeping Systems in Sync
@@ -2244,7 +2244,7 @@ be a more robust, but it also comes with challenges, such as handling schema cha
 the system of record database does not wait for the change to be applied to consumers before committing it.
 
 ##### Initial snapshot
-If you don’t have the entire log history, you need to start with a consistent snapshot, which must correspond to a 
+If you don't have the entire log history, you need to start with a consistent snapshot, which must correspond to a 
 known position or offset in the change log, so that you know at which point to start applying changes after the 
 snapshot has been processed.
 
@@ -2295,7 +2295,7 @@ several different places. With event sourcing, you can design an event such that
 of a user action which requires only a single write in one place—namely appending the events to the log (made atomic).
 
 ##### Limitations of immutability
-In some circumstances (data privacy regulations, sensitive information), it’s not sufficient to delete information by 
+In some circumstances (data privacy regulations, sensitive information), it's not sufficient to delete information by 
 appending another event to the log. Due to the replication of the data, deletion is more a matter of "making it 
 harder to retrieve the data" than actually "making it impossible to retrieve the data." 
 
@@ -2368,7 +2368,7 @@ some window of time.
 
 ##### Stream-table join (stream enrichment)
 One input stream consists of activity events, while the other is a database change‐log. To perform this join, the 
-stream process needs to look at one activity event at a time, look up the event’s user ID in the database (which 
+stream process needs to look at one activity event at a time, look up the event's user ID in the database (which 
 might be very slow). Another approach is to load a copy of the database into the stream processor so that it can be 
 queried locally  without a network round-trip. The problem is that the database is likely to change over time, so the
  stream processor's local copy of the database needs to be kept up to date (i.e. with CDC).
@@ -2408,3 +2408,289 @@ to keep the state in a remote datastore and replicate it, or keep state local to
 it periodically for performance.
 
 ## Chapter 12: The Future of Data Systems<a name="Chapter12"></a>
+### Data Integration
+In complex applications, data is often used in several different ways, there is unlikely to be one piece of software 
+that is suitable for all the different circumstances.
+
+#### Combining Specialized Tools by Deriving Data
+As the number of different representations of the data increases, the integration problem becomes harder. 
+
+##### Reasoning about dataflows
+If it is possible for you to funnel all user input through a single syste m that decides on an ordering for all 
+writes, it becomes much easier to derive other representations of the data by processing the writes in the same order.
+
+##### Derived data versus distributed transactions
+In the absence of wides pread support for a good distributed transaction protocol, log-based derived data is the 
+most promising approach for integrating different data systems.
+
+##### The limits of total ordering
+Constructing a totally ordered event log is feasible if the system is small enough, however, as they are scaled toward 
+bigger and more complex workloads, limitations begin to emerge:
+
+    * Constructing a totally ordered log requires all events to pass through a single leader node that decides on the
+     ordering. If the throughput of events is greater than a single machine can handle, you need to partition it. The 
+     order of events in two different partitions is then ambiguous
+    * If the servers are spread across multiple geographically distributed datacenters, you typically have a separate 
+    leader in each datacenter. This implies an undefined ordering of events that originate in two different datacenters
+    * In microservices a common design choice is to deploy each service and its  durable state as an independent 
+    unit (non-shared). When two events originate in different services, there is no defined order for those events
+    * Some applications maintain client-side state that is updated immediately on user input, and even continue to 
+    work offline . With such applications, clients and servers are very likely to see events in different orders
+    
+Deciding on a total order of events is known as _total order broadcast_, which is equivalent to consensus which is 
+usually designed for situations in which the throughput of one node is enough to process the entire stream of events.
+
+##### Ordering events to capture causality
+If there is no causal link between events, concurrent events can be ordered arbitrarily. Timing issues might arise if
+ order is required:
+ 
+    * • Logical timestamps can provide total ordering without coordination, but require recipients to handle events 
+    that are delivered out of order, and they require additional metadata to be passed around.
+    * If you can log an event to record the state of the system that the user saw before making a decision, and give 
+    that event a unique identifier, then any later events can reference that ID in order to record the causal dependency
+    * Conflict resolution algorithms helps with processing events that are delivered in an unexpected order. They are
+     useful for maintaining state, but they do not help if actions have external side effects
+     
+#### Batch and Stream Processing
+The goal of data integration is to make sure that data ends up in the right form in all the right places. Batch and 
+stream processors are the tools for achieving this goal.
+
+##### Maintaining derived state
+Batch processing encourages deterministic, pure functions whose output depends only on the input and which have no 
+side effects other than the explicit outputs, treating inputs as immutable and outputs as append-only. 
+Derived data systems could be maintained synchronously, but asynchrony makes systems based on event logs robust: it 
+allows a fault in a part of the system to be contained locally, distributed transactions abort if any participant fails.
+A partitioned system with secondary indexes needs to send writes to multiple partitions or send reads to all partitions.
+
+##### Reprocessing data for application evolution
+Reprocessing existing data provides a good mechanism for maintaining a system, evolving it to support new features 
+and changed requirements. Derived views allow gradual evolution, you can maintain the old schema and the new schema 
+side by side as two independently derived views onto the same underlying data.
+
+##### The lambda architecture
+The core idea of the lambda architecture is that incoming data should be recorded by appending immutable events to 
+an always-growing dataset. From these events, read-optimized views are derived. The lambda architecture proposes 
+running two different systems in parallel: a batch processing system and a separate stream-processing system.
+
+##### Unifying batch and stream processing
+Unifying batch and stream processing in one system requires:
+
+    * The ability to replay historical events through the same processing engine handling the stream of recent events
+    * Exactly-once semantics for stream processors, discarding the partial output of any failed tasks
+    * Tools for windowing by event time. Processing time is meaningless when reprocessing historical events
+    
+### Unbundling Databases
+Unix and relational databases has different approaches for the information management problem. Unix presents programmers
+with a low-level hardware abstraction, relational databases uses a high-level abstraction that hides the complexities 
+of data structures on disk. Unix developed pipes and files (sequences of bytes), DBs developed SQL and transactions.
+
+#### Composing Data Storage Technologies
+There are parallels between the features that are built into databases and the derived data systems that people are 
+building with batch and stream processors.
+
+##### Creating an index
+Creating an index in a database is remarkably similar to setting up a new follower replica. When you run CREATE INDEX, 
+the database reprocesses the existing dataset and derives the index as a new view onto the existing data.
+
+#### The meta-database of everything
+Batch and stream processors are like elaborate implementations of triggers, stored procedures, and materialized view 
+maintenance routines. Different storage and processing tools can nevertheless be composed into a cohesive system: 
+
+    * Federated databases (unifying reads): It is possible to provide a unified query interface to a wide variety of
+    underlying storage engines and processing methods—an approach known as a federated database or polystore
+    A federated query interface follows the relational tradition of a single integrated system with a high-level 
+    query language and elegant semantics, but a complicated implementation
+    * Unbundled databases (unifying writes): When we compose several storage systems, we need to ensure that all 
+    data changes ends in the right places, even in the face of faults. The unbundled approach follows the Unix 
+    tradition of small tools that do one thing well [22], that communicate through a uniform low-level API (pipes), 
+    and that can be composed using a higher-level language (the shell)
+    
+##### Making unbundling work
+The traditional approach to synchronizing writes requires distributed transactions across heterogeneous storage systems 
+ but asynchronous event log with idempotent writes is a much more robust and practical approach. The big advantage of
+ log-based integration is loose coupling between the various components, which manifests itself in two ways:
+
+    * Asynchronous event streams make the system as a whole more robust to outages or performance degradation of 
+    individual components
+    * Unbundling data systems allows different software components and services to be developed, improved, and 
+    maintained independently from each other by different teams
+    
+##### Unbundled versus integrated systems
+Databases will still be important for particular workloads (query engines in MPP data warehouses), plus a single 
+integrated software product may also be able to achieve better and more predictable performance on the kinds of 
+workloads for which it is designed, compared to a system consisting of several tools that you have composed with 
+application code.
+The goal of unbundling is not to compete with individual databases on performance for particular workloads; the goal 
+is to allow you to combine several different data‐ bases in order to achieve good performance for a much wider range
+ of workloads than is possible with a single piece of software. 
+ 
+##### What's missing?
+We don't yet have the unbundled-database equivalent of the Unix shell: high-level language for composing storage and
+ processing systems in a simple and declarative way.
+ 
+#### Designing Applications Around Dataflow
+##### Application code as a derivation function
+When one dataset is derived from another, it goes through some kind of transformation function. The function that 
+creates a derived dataset is not a standard cookie-cutter function like creating a secondary index, custom code is
+ required to handle the application-specific aspects. 
+ 
+##### Separation of application code and state
+It makes sense to have some parts of a system that specialize in durable data storage, and other parts that 
+specialize in running application code. The database acts as a kind of mutable shared variable that can be accessed 
+synchronously over the network. The application can read and update the variable, and the database takes care of 
+making it durable, providing some concurrency control and fault tolerance.
+
+##### Dataflow: Interplay between state changes and application code
+Thinking about applications in terms of dataflow implies thinking much more about the interplay and collaboration 
+between state, state changes, and code that processes them. Application code responds to state changes in one place 
+by triggering state changes in another place, and we can use stream processing and messaging systems for this purpose:
+
+    * When maintaining derived data, the order of state changes is often important 
+    * Losing just a single message causes the derived dataset to go permanently out of sync with its data source
+    
+##### Stream processors and services
+The currently trendy style of application development involves breaking down functionality into a set of services 
+that communicate via synchronous network requests such as REST APIs. Composing stream operators into dataflow 
+systems is similar to the microservices approach. However, the underlying communication mechanism is very different:
+ one-directional, asynchronous message streams rather than synchronous request/response interactions.
+
+#### Observing Derived State
+A dataflow systems has a process for creating derived datasets and keeping them up to date called _write path_ 
+(precomputed). At the same time the _read path_ is the process of serving users request you read from the derived 
+dataset (only happens when someone asks for it). The write path is similar to eager evaluation, and the read path is 
+similar to lazy evaluation.
+
+##### Materialized views and caching
+An option to have a balance between reducing indexes to speed up writes and maintain all possible search results to 
+speed up reads is to precompute the search results for only a fixed set of the most common queries to serve them 
+quickly without having to do a look up on the indexes. This would need to be updated when new documents appear that 
+should be included in the results of one of the common queries. There is more work to do on the write path, by 
+precomputing results, but it saves effort on the read path.
+
+##### Stateful, offline-capable clients
+_Offline-first_ applications do as much as possible using a local database on the same device, without requiring an 
+internet connection, and sync with remote servers in the background when a network connection is available. Think of 
+the on-device state as a cache of state on the server.
+
+##### Pushing state changes to clients
+Traditionally, a browser only reads the data at one point in time, assuming that it is static. It does not subscribe 
+to updates from the server. Server-sent events (EventSource API) and WebSockets provide communication channels by which 
+a web browser can keep an open TCP connection to a server, and the server can actively push messages to the browser
+ as long as it remains connected. This means pushing state changes all the way to client devices means extending the 
+ write path all the way to the end user.
+ 
+##### End-to-end event streams
+Some development tools alrea dy manage internal client-side state by subscribing to a stream of events representing 
+user input or responses from a server, structured similarly to event sourcing. To extend the write path all the way 
+to the end user, we will need to move away from request/response interaction and toward publish/subscribe dataflows.
+
+##### Reads are events too
+Some stream processor frameworks allows to query its state by outside clients, turning the stream processor itself 
+into a kind of simple database. Usually, the writes to the store go through an event log, while reads are transient 
+network requests that go directly to the nodes that store the data being queried, but it is also possible to represent
+ read requests as streams of events, and send both the read events and the write events through a stream processor.
+Writing read events to durable storage enables better tracking of causal dependencies.
+
+##### Multi-partition data processing
+The effort of sending queries through a stream and collecting a stream of responses opens the possibility of 
+distributed execution of complex queries that need to combine data from several partitions.
+
+### Aiming for Correctness
+#### The End-to-End Argument for Databases
+Just because an application uses a data system that provides compara tively strong safety properties, such as 
+serializable transactions, that does not mean the application is guaranteed to be free from data loss or corruption. 
+
+##### Exactly-once execution of an operation
+Processing twice a message is a form of data corruption, exactly-once me ans arranging the compu‐ tation such that 
+the final effect is the same as if no faults had occurred, even if the operation actually was retried due to some fault.
+
+##### Duplicate suppression
+Two-phase commit protocols break the 1:1 mapping between a TCP connection and a transaction, and does not ensure 
+that the transaction will only be executed once (for example if the user doesn't receive the confirmation of the 
+transaction and retries even if this has succeeded).
+
+##### Operation identifiers
+To make the previous operation idempotent, you need to consider the end-to-end flow of the request (for example 
+generating a unique operation ID).
+
+##### The end-to-end argument
+_End-to-end argument_ states that a function can completely and correctly be implemented only with the knowledge and
+ help of the application standing at the endpoints of the communication system, which includes checking the integrity 
+ of data.
+ 
+#### Enforcing Constraints
+##### Uniqueness constraints require consensus
+In a distributed setting, enforcing a uniqueness constraint (or other constraints) requires consensus, which is usually 
+achieved through making a single node the leader, although this can be scaled out by partitioning based on the value 
+that needs to be unique. Asynchronous multi-master replication is ruled out, because it could hap‐ pen that different
+ masters concurrently accept conflicting writes, to immediately reject any writes that would violate the constraint, 
+ synchronous coordination is unavoidable.
+ 
+##### Uniqueness in log-based messaging
+In the unbundled database approach with log-based messaging, we can enforce uniqueness constraints by having a stream 
+processor consuming all the messages in a log partition sequentially on a single thread, which can unambiguously and 
+deterministically decide which one of several conflicting operations came first. The fundamental principle is that 
+any writes that may conflict are routed to the same partition and processed sequentially.
+
+##### Multi-partition request processing
+To ensure that an operation is executed atomically, while satisfying constraints when several partitions are involved, 
+we can either do an atomic commit over all the partitions (traditional approach) or by first appending to a log 
+partition based on the request ID so a stream processor can emit messages (including the request ID) to the 
+appropriate partitions, and then another processor would consume those messages and apply the changes. In this case, 
+if the second request crashes, it will process the request on resuming.
+
+#### Timeliness and Integrity
+consistency conflates two different requirements to be consider separately:
+
+    * Timeliness:  Ensuring that users observe the system in an up-to-date state. This inconsistency is temporary, 
+    and will eventually be resolved simply by waiting and trying again
+    * Integrity: Absence of corruption; i.e.,  no data loss, and no contradictory or false data. This inconsistency 
+    is permanent, waiting and trying again is not going to fix database corruption in most cases
+    
+Violations of timeliness are "eventual consistency," whereas violations of integrity are "perpetual inconsistency."
+
+##### Correctness of dataflow systems
+ACID transactions usually provide both timeliness and integrity guarantees. Event-based dataflow systems decouples 
+timeliness and integrity. When processing event streams asynchronously, there is no guarantee of timeliness, but 
+integrity is in fact central. In these systems integrity is achieved through:
+
+    * Representing the content of the write operation as a single message, which can easily be written atomically
+    * Deriving all other state updates from that single message using deterministic der‐ ivation functions
+    * Passing a client-generated request ID through all these levels of processing, enabling end-to-end duplicate 
+    suppression and idempotence
+    * Making messages immutable and allowing derived data to be reprocessed from time to time
+    
+##### Loosely interpreted constraints
+Many real applications can actually get away with much weaker notions of uniqueness if it is actually acceptable to 
+temporarily violate a constraint and fix it up later by apologizing. These applications do require integrity, but they 
+don't require timeliness on the enforcement of the constraint.
+
+##### Coordination-avoiding data systems
+Given the previous two points, namely:
+
+    * Dataflow systems can maintain integrity guarantees on derived data without atomic commit, linearizability, or 
+    synchronous cross-partition coordination
+    * Strict uniqueness constraints require timeliness and coordination, many applications are actually fine with 
+    loose constraints that may be temporarily violated and fixed up later, as long as integrity is preserved throughout
+    
+A dataflow systems can provide the data management services for many applications without requiring coordination, 
+while still giving strong integrity guarantees (_coordination-avoiding_).
+
+#### Trust, but Verify
+##### Don’t just blindly trust what they promise
+Data corruption is inevitable sooner or later, checking the integrity of data is known as _auditing_ (read an check).
+
+##### Designing for auditability
+Event-based systems provides better auditability: user input to the system is represented as a single immutable 
+event, and any resulting state updates are derived from that event (deterministic and repeatable). Being explicit 
+about dataflow, makes integrity checking much more feasible. For the event log, we can use hashes to  check that the 
+event storage has not been corrupted. For any derived state, we can rerun the batch and stream processors that 
+derived it from the event log in order to check whether we get the same result.
+
+##### The end-to-end argument again
+We must check periodically the integrity of our data, which is best done in an end-to-end fashion.
+
+##### Tools for auditable data systems
+Cryptographic auditing and integrity checking often relies on Merkle trees, which are trees of hashes that can be 
+used to efficiently prove that a record appears in some dataset. Certificate transparency is a security technology 
+that relies on Merkle trees to check the val‐ idity of TLS/SSL certificates.
