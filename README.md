@@ -66,10 +66,8 @@ Software can be designed in such a way that it minimizes maintenance pain. We wi
 systems:
 
     * Operability: Make it easy for operations teams to keep the system running smoothly
-    * Simplicity: Make it easy for new engineers to understand the system, by removing as much complexity as possible 
-      from the system
-    * Evolvability: Make it easy for engineers to make changes to the system in the future, adapting it for 
-    unanticipated use cases as requirements change
+    * Simplicity: Make it easy for new engineers to understand the system, by removing as much complexity as possible from the system
+    * Evolvability: Make it easy for engineers to change the system in the future, adapting it for unanticipated use cases asrequirements change
 
 #### Operability: Making Life Easy for Operations
 
@@ -81,7 +79,7 @@ activities
 #### Simplicity: Managing Complexity
 
 Reducing complexity greatly improves the maintainability of software, and thus simplicity should be a key goal for the systems we build. Abstraction
-removes unnecesary complexity: it can hide a great deal of implementation detail behind a clean, simple-to-understand façade.
+removes unnecesary complexity: it can hide a great deal of implementation detail behind a clean, simple-to-understand facade.
 
 #### Evolvability: Making Change Easy
 
@@ -106,7 +104,7 @@ The adoption of NoSQL databases is driven by:
 #### The Object-Relational Mismatch
 
 The impedance mismatch is the disconnection between the relational model and the object model, which can be partially solved by the ORM frameworks.
-Later versions of SQL support structured datatypes and XML within a single row. JSON format can partially solve the impedance mismatch, it has better
+Later versions of SQL support structured data types and XML within a single row. JSON format can partially solve the impedance mismatch, it has better
 locality than multi-table schema as the data is stored as a tree structure, but the lack of schema can be either an advantage or a disadvantage.
 
 #### Many-to-One and Many-to-Many Relationships
@@ -151,9 +149,8 @@ models.
 
 No schema means that arbitrary keys and values can be added to a document, and when reading, clients have no guarantees as to what fields the
 documents may contain. Document databases has some kind of implicit schema, but it is not enforced by the database (schema-on-read). The
-schema-on-read approach is advantageous if the items in the collection don't all have the same structure, which could happen due to have many
-different types of objects (and hence is not practical to put each type in its own table) or the structure of the table is determined by external
-systems.
+schema-on-read approach is advantageous if the items in the collection don't all have the same structure, which could happen due to have different
+types of objects (and hence is not practical to put each type in its own table), or the structure of the table is determined by external systems.
 
 ##### Data locality for queries
 
@@ -266,10 +263,10 @@ data model to represent it.
 
 ##### The RDF data model
 
-On the RDF data model, the subject, predicate, and object of a triple are often URIs (like <http://my-company
-.com/namespace#lives_in> instead of WITHIN). The reasoning behind this design is that you should be able to combine your data with someone else's
-data, and if they attach a different meaning to the word within or lives_in, you won't get a conflict because their predicates are different.
-Something like avoiding collisions by using different namespaces.
+On the RDF data model, the subject, predicate, and object of a triple are often URIs (like <http://my-company.com/namespace#lives_in> instead of
+WITHIN). The reasoning behind this design is that you should be able to combine your data with someone else's data, and if they attach a different
+meaning to the word within or `lives_in`, you won't get a conflict because their predicates are different. Something like avoiding collisions by using
+different namespaces.
 
 ##### The SPARQL query language
 
@@ -288,9 +285,9 @@ Because RDF doesn't distinguish between properties and edges but just uses predi
 
 #### The Foundation: Datalog
 
-Datalog's data model is similar to the triple-store model. Instead of writing a triple as (subject, predicate, object), we write it as predicate(
-subject, object). In Datalog, we define rules that tell the database about new predicates. These predicates aren't triples stored in the database, but
-instead they are derived from data or from other rules. Rules can refer to other rules.
+Datalog's data model is similar to the triple-store model. Instead of writing a triple as (subject, predicate, object), we write it as predicate
+(subject, object). In Datalog, we define rules that tell the database about new predicates. These predicates aren't triples stored in the database,
+but instead they are derived from data or from other rules. Rules can refer to other rules.
 
 ## Chapter 3: Storage and Retrieval<a name="Chapter3"></a>
 
@@ -307,7 +304,7 @@ A simple possible strategy to implement indexes for key-value data is to keep an
 data file. Bitcask is a storage engine that does this, stores all the keys in memory and values are either in memory (cache) or on disk, only a disk
 seek has to be done to load a value. This is well suited for frequently updated keys. The log can be break into segments of certain size (segments are
 closed when they reach certain size), once a segment is closed, compaction (throwing away duplicate keys keeping the most up to date value) is
-performed an a new segment file is opened. After compaction, the segments can be merged if they are small enough (segments are not modified so they
+performed and a new segment file is opened. After compaction, the segments can be merged if they are small enough (segments are not modified so they
 are written to a new file), this is done in the background by a separate thread. Some performance considerations are:
 
     * File format: binary preferred
@@ -324,31 +321,28 @@ limited by the memory and range queries are not efficient.
 If instead of having the key-value pairs in the log in the order they were written we have the keys sorted by keys, we have what is called a Sorted
 String Table (SSTable). Keys must appear only once within each merged segment file. This is beneficial due to:
 
-    * Merging files is simpler and efficient, mergesort algorithm (taking several segment and writting the lowest and
-     most recent key to the segment in each step) can be used
-    * No need for indexing all keys (you can jump to another close position and scan from there), sparse key indexes 
-    can be used
-    * Since read request needs to scan over several key-value pairs for request, it is possible to group and compress
-     those records in a block before writting it, which reduces I/O bandwidth 
+    * Merging files is simpler and efficient, mergesort algorithm (taking several segment and writting the lowest and most recent key to the 
+      segment in each step) can be used
+    * No need for indexing all keys (you can jump to another close position and scan from there), sparse key indexes can be used
+    * Since read request needs to scan over several key-value pairs for request, it is possible to group and compress those records in a block 
+      before writting it, which reduces I/O bandwidth 
 
 ##### Constructing and maintaining SSTables
 
 Maintaining a sorted structure on disk is possible, but maintaining it in memory is much easier. The storage engine can work as follows:
 
     * When a write comes in, add it to the in-memory balanced tree (called memtable)
-    * If memtable size > threshold, write it to disk, while this happens new writes are written to a new memtable 
-    instance
-    * On request, try to find the key in the memtable, if it fails go to the most recent disk segment, if it fails go
-     to the second, and so on
+    * If memtable size > threshold, write it to disk, while this happens new writes are written to a new memtable instance
+    * On request, try to find the key in the memtable, if it fails go to the most recent disk segment, if it fails go to the second, and so on
     * Run merging an compaction in the background regularly
 
-The only problem with this is that it may led to data lost if the server goes down and memtable has not been written to disk (which can be solved by
+The only problem with this is that it may lead to data lost if the server goes down and memtable has not been written to disk (which can be solved by
 appending to an unsorted separate log every write as it happens). This log can be discarded every time the memtable is written to disk.
 
 ##### Making an LSM-tree out of SSTables
 
-Some key-value storage engines are designed to be embedded into other applications. This index structure is called Log-Structured Merge-Tree or (
-LSM-Tree). A similar concept is used for full text search in Lucene.
+Some key-value storage engines are designed to be embedded into other applications. This index structure is called Log-Structured Merge-Tree or
+LSM-Tree. A similar concept is used for full text search in Lucene.
 
 ##### Performance optimizations
 
@@ -362,7 +356,7 @@ smaller SSTables and older data is moved into separate levels).
 The most widely used indexing structure is the B-tree, which keep key-value pairs sorted by key, allowing for efficient key-value lookups and range
 queries. B-trees break the database down into fixed-size blocks or pages, traditionally 4 KB in size (sometimes bigger), and read or write one page at
 a time. Each page can be identified using an address or location, which allows one page to refer to another (similar to a pointer), but on disk
-instead of in memory and this structure can be use to construct a tree of pages. One page is designated as the root of the B-tree, which is used to
+instead of in memory and this structure can be used to construct a tree of pages. One page is designated as the root of the B-tree, which is used to
 start looking for a key. The page contains several keys and references to child pages. Each child is responsible for a continuous range of keys, and
 the keys between the references indicate where the boundaries between those ranges lie. A leaf page contains individual keys, which contains either
 the value for the key or the reference to the page where the value is. The number of references to child pages in one page of the B-tree is called the
@@ -372,14 +366,14 @@ branching factor.
 
 The basic write operation is to overwrite pages on disk. This can fail, for example if you split a page because an insertion caused it to be overfull,
 you need to write the two pages that were split, and also overwrite their parent page to update the references to the two child pages (can be solved
-partially by adding a append only write-ahead log named WAL). Pages has tipically latches (lightweight locks), to deal with concurrency problems.
+partially by adding an append only write-ahead log named WAL). Pages has typically latches (lightweight locks), to deal with concurrency problems.
 
 ##### B-tree optimizations
 
 Some optimizations can be:
 
-    * Use a copy-on-write scheme instead of WAL: A modified page is written to a different location, and a new 
-    version of the parent pages in the tree is created, pointing at the new location
+    * Use a copy-on-write scheme instead of WAL: A modified page is written to a different location, and a new version of the parent pages in the tree 
+      is created, pointing at the new location
     * Abreviatting the keys to save space, specially in interior pages which only needs to act as boundaries
     * Many B-tree implementations therefore try to lay out the tree so that leaf pages appear in sequential order on disk
     * Additional pointer to sibling pages might be added to speed scanning
@@ -407,17 +401,16 @@ different segments (advantage on strong transactional storages).
 
 #### Other Indexing Structures
 
-Appart of the key-value (like PK for a RDBMS or a document ID for a document database...), there are other structures like FK or secondary indexes.
-The main difference between the primary and secondary indexes is that in a secondary index, the indexed values are not necessarily unique; that is,
-there might be many rows (documents, vertices) under the same index entry.
+Aside of the key-value (like PK for a RDBMS or a document ID for a document database...), there are other structures like FK or secondary indexes. The
+main difference between the primary and secondary indexes is that in a secondary index, the indexed values are not necessarily unique; that is, there
+might be many rows (documents, vertices) under the same index entry.
 
 ##### Storing values within the index
 
 The value that a key points to, can be one of two things: it could be the actual row, or it could be a reference to the row stored elsewhere (the
 place where rows are stored is known as a heap file and it stores unordered data). The heap file avoids duplicating data when multiple secondary
 indexes are present: each index just references a location in the heap file, and the actual data is kept in one place. In some cases, it can be
-desirable to store the indexed row directly within an index, known as a clustered index
-(storing all row data within the index).
+desirable to store the indexed row directly within an index, known as a clustered index (storing all row data within the index).
 _Covering index_ or _index with included columns_ stores some of a table's columns within the index, and some are references to other locations.
 
 ##### Multi-column indexes
@@ -440,17 +433,16 @@ in-memory databases is due to not having to deal with overheads of encoding in-m
 ### Transaction Processing or Analytics?
 
 A transaction in DBs is a group of reads and writes that form a logical unit. The typical access pattern became known as online transaction
-processing (OLTP) and usually involves a small number of records per query, fetched by key. A different access patter is used for analytics, usually
+processing (OLTP) and usually involves a small number of records per query, fetched by key. A different access pattern is used for analytics, usually
 an analytic query needs to scan over a huge number of records, only reading a few columns per record, and calculates aggregate statistics. The pattern
 for analytics is called online analytic processing (OLAP).
 
 #### Data Warehousing
 
 A data warehouse is a database that analysts can query without affecting OLTP operations, it contains a read-only copy of the data in all the various
-OLTP systems in a company or organization. Data is extracted from OLTP databases
-(using periodic data dump or a continuous stream of updates), transformed into an analysis-friendly schema, cleaned up, and then loaded into the data
-warehouse. This is known as Extract–Transform–Load (ETL). Data warehouses and a relational OLTP database both have a SQL query interface but they are
-optimized for very different query patterns.
+OLTP systems in a company or organization. Data is extracted from OLTP databases (using periodic data dump or a continuous stream of updates),
+transformed into an analysis-friendly schema, cleaned up, and then loaded into the data warehouse. This is known as Extract–Transform–Load (ETL). Data
+warehouses and a relational OLTP database both have a SQL query interface but they are optimized for very different query patterns.
 
 #### Stars and Snowflakes: Schemas for Analytics
 
@@ -476,7 +468,7 @@ encoding (often, the number of distinct values in a column is small compared to 
 #### Sort Order in Column Storage
 
 In a column store it usually doesn't make a difference the order of the data (it is the insertion order), but we can impose an order. The
-administrator of the database can choose the columns by which the table should be sorted, which is usually dependant on the query pattern most
+administrator of the database can choose the columns by which the table should be sorted, which is usually dependent on the query pattern most
 commonly used (i.e. by date and by country). This can help with compression of columns
 
 ##### Several different sort orders
@@ -496,10 +488,10 @@ writes in memory, and combine the two (done by the query optimizer).
 
 #### Aggregation: Data Cubes and Materialized Views
 
-Data warehouse queries often involve an aggregate function (SUM, AVG...), which if are used often, might have sense to cache the results of such
+Data warehouse queries often involve an aggregate function (SUM, AVG...), which if they are used often, might have sense to cache the results of such
 functions. One way of creating such a cache is a _materialized view_: similar to virtual views (data as result of a query), but written to disk. When
 the underlying data changes, a materialized view needs to be updated, because it is a denormalized copy of the data. A common special case of a
-materialized view is known as a data cube or OLAP cube which is a grid of aggregates grouped by different dimensions. In this cubes, performance is
+materialized view is known as a data cube or OLAP cube which is a grid of aggregates grouped by different dimensions. In these cubes, performance is
 gain at the cost of flexibility in querying (therefore this type of aggregation is often limited to some particular queries).
 
 ## Chapter 4: Encoding and Evolution<a name="Chapter4"></a>
@@ -511,15 +503,15 @@ Programs usually work with data in (at least) two different representations:
     * In memory: optimized for efficient access and manipulation by the CPU (lists, hashmaps, sets...)
     * Encoded in a particular sequence of bytes: There are no pointers (woldn't make sense), JSON, text...
 
-The translation from the in-memory representation to a byte sequence is called encoding and the reverse is called decoding.
+The translation from the in-memory representation to a byte sequence is called encoding, and the reverse is called decoding.
 
 #### Language-Specific Formats
 
 Many libraries came with a built-in support for in-memory encoding-decoding, but at the cost of:
 
     * Often, the encoding is tied to a particular programming language
-    * In order to restore data in the same object types, the decoding process needs to be able to instantiate 
-    arbitrary classes, which might lead to security vulnerabilities
+    * In order to restore data in the same object types, the decoding process needs to be able to instantiate arbitrary classes, which might lead 
+      to security vulnerabilities
     * Versioning data can be a source of problems
     * CPU efficiency can be a source of performance problems
 
@@ -527,10 +519,10 @@ Many libraries came with a built-in support for in-memory encoding-decoding, but
 
 JSON, XML, and CSV are textual formats, that comes with some remarkable problems:
 
-    * Lot of ambiguity around the encoding of numbers: XML doesn't distinguish between strings containing numbers and
-     numbers, and JSON can't specify the precission of numbers
-    * JSON and XML have good support for Unicode character strings, but they don't support binary strings. These 
-    strings are usually encoded using Base64, which increases the data size
+    * Lot of ambiguity around the encoding of numbers: XML doesn't distinguish between strings containing numbers and numbers, and JSON can't 
+      specify the precission of numbers
+    * JSON and XML have good support for Unicode character strings, but they don't support binary strings. These strings are usually encoded using 
+      Base64, which increases the data size
     * There is optional schema support for XML and JSON, but it is complicated to implement
     * CSV does not have any schema, up to the application to interpret the data. Additions are complicated to handle 
 
@@ -543,10 +535,10 @@ terms of space, so might not worth the loss of human readability.
 
 Both Thrift and Protocol Buffers require a schema for any data that is encoded. Thrift and Protocol Buffers each come with a code generation tool that
 takes a schema definition, and produces classes that implement the schema in various programming languages. Thrift has two different binary encoding
-formats,iii called BinaryProtocol and CompactProtocol. In the thrift binary protocol, the data contains type, length of data, the data itself, and
-field tags (instead of field names), which are numbers identified the field names in the schema definition (like aliases). In the thrift compact
-protocol, the field type and tag numbers are combined in one, and fields are encoded using variable length integers (the top bytes are used to
-indicate whether there are still more bytes to come). Protocol Buffers is very similar to Thrift's CompactProtocol.
+formats, called BinaryProtocol and CompactProtocol. In the thrift binary protocol, the data contains type, length of data, the data itself, and field
+tags (instead of field names), which are numbers identified the field names in the schema definition (like aliases). In the thrift compact protocol,
+the field type and tag numbers are combined in one, and fields are encoded using variable length integers (the top bytes are used to indicate whether
+there are still more bytes to come). Protocol Buffers is very similar to Thrift's CompactProtocol.
 
 ##### Field tags and schema evolution
 
@@ -563,12 +555,11 @@ In data type changes, there is a risk that values will lose precision or get tru
 
 Avro also uses a schema to specify the structure of the data being encoded. It has two schema languages: one (Avro IDL) intended for human editing,
 and one (based on JSON) that is more easily machine-readable. Values are concatenated together, to parse the binary data, you go through the fields in
-the order that they appear in the schema and use the schema to tell you the datatype of each field (schema mismatch would result in invalid data read)
-.
+the order that they appear in the schema and use the schema to tell the datatype of each field (schema mismatch would result in invalid data read).
 
 ##### The writer's schema and the reader's schema
 
-With Avro, when an application wants to encode some data, it encodes the data using whatever version of the schema it knows about, which might be
+With Avro, when an application wants to encode some data, it encodes the data using whatever version of the schema it knows about which might be
 compiled into the application. This is known as the writer's schema. On data decoding, it needs the data to be in some schema, known as reader's
 schema, which don't have to be the same than the writer's schema (but needs to be compatible). The Avro library resolves the differences by looking at
 the writer's schema and the reader's schema side by side and translating the data from the writer's schema into the reader's schema.
@@ -583,22 +574,22 @@ that Avro can convert the type.
 
 The schema of an Avro file can't be included in every record, therefore:
 
-    * Large file with lots of records: Usually the schema is at the beginning of the file. Avro specifies a file 
-    format (object container file) to do this
-    * Database with individually written records: different records may be written at different points in time using
-     different writer's schemas. A version number indicating the schema is included at the beginning of each record
-    * Sending records over a network connection: Two endpoints in a communication can negotiate the schema version on
-     connection setup (like in the Avro RPC protocol)
+    * Large file with lots of records: Usually the schema is at the beginning of the file. Avro specifies a file format (object container file) to do 
+      this
+    * Database with individually written records: different records may be written at different points in time using different writer's schemas. A 
+      version number indicating the schema is included at the beginning of each record
+    * Sending records over a network connection: Two endpoints in a communication can negotiate the schema version on connection setup (like in 
+      the Avro RPC protocol)
 
 ##### Dynamically generated schemas
 
-Avro doesn't contain tag numbers like in Protocol Buffers and Thrift which is friendlier to the dynamically generated schemas, with Thrift or Protocol
-Buffers for this purpose, the field tags would likely have to be assigned by hand every time the schema changes (from DB columns to field tags).
+Avro doesn't contain tag numbers like in Protocol Buffers, and Thrift which is friendlier to the dynamically generated schemas, with Thrift or
+Protocol Buffers, the field tags would likely have to be assigned by hand every time the schema changes (from DB columns to field tags).
 
 ##### Code generation and dynamically typed languages
 
 Protocol Buffers and Thrift allows efficient in-memory structures to be used for decoded data after a schema has been defined. There is no point on
-doing this for dinamically typed languages. Avro provided optional code generation for statically typed languages.
+doing this for dynamically typed languages. Avro provided optional code generation for statically typed languages.
 
 #### The Merits of Schemas
 
@@ -615,7 +606,7 @@ Compatibility is a relationship between one process that encodes the data, and a
 
 #### Dataflow Through Databases
 
-In an environment where the application is changing, it is likely that some processes accessing the database will be running newer code and some will
+In an environment where the application is changing, it is likely that some processes accessing the database will be running newer code, and some will
 be running older code, therefore forward compatibility is also often required for databases. Older clients usually left newly added fields untouched.
 
 ##### Different values written at different times
@@ -632,47 +623,45 @@ mixture of schema versions from different eras.
 
 #### Dataflow Through Services: REST and RPC
 
-When you have processes that need to communicate over a network, the most common arrangement is to have two roles:
-clients and servers. The servers expose an API over the network, and the clients make requests to that API (known as service). In some ways, services
-are similar to databases: they typically allow clients to submit and query data. As the querys a client can do are limited by the API, the services
-can impose fine grained restrictions to what a client can do. A key design goal of a service-oriented/microservices architecture is to make the
-application easier to change and maintain by making services independently deployable and evolvable.
+When you have processes that need to communicate over a network, the most common arrangement is to have two roles: clients and servers. The servers
+expose an API over the network, and the clients make requests to that API (known as service). In some ways, services are similar to databases: they
+typically allow clients to submit and query data. As the queries a client can do are limited by the API, the services can impose fine-grained
+restrictions to what a client can do. A key design goal of a service-oriented/microservices architecture is to make the application easier to change
+and maintain by making services independently deployable and evolvable.
 
 ##### Web Services
 
 When HTTP is used as the underlying protocol for talking to the service, it is called a web service. There are two popular approaches:
 
-    * REST: emphasizes simple data formats, using URLs for identifying resources and using HTTP features for cache 
-    control, authentication, and content type negotiation
-    * SOAP: XML-based protocol for making network API requests, the API of a SOAP web service is described using an 
-    XML-based language called the Web Services Description Language, or WSDL
+    * REST: emphasizes simple data formats, using URLs for identifying resources and using HTTP features for cache control, authentication, and 
+      content type negotiation
+    * SOAP: XML-based protocol for making network API requests, the API of a SOAP web service is described using an XML-based language called the 
+      Web Services Description Language, or WSDL
 
 ##### The problems with remote procedure calls (RPCs)
 
 The remote procedure call (RPC) model tries to make a request to a remote network service look the same as calling a function or method in your
 programming language, within the same process. A network request is very different from a local function call:
 
-    * Local calls are predictable (either succeeds or not), remote calls are not because involves factors out of our 
-    control like network problems
-    * Local calls returns a result, an exception or never returns (infinite loop). A network call might return 
-    nothing due to timeouts, not knowing what happened in the other end
-    * Retrying a call might lead to unexpected results for non idempotent calls if the bit lost was the response from 
-    the server
+    * Local calls are predictable (either succeeds or not), remote calls are not because involves factors out of our control like network problems
+    * Local calls returns a result, an exception or never returns (infinite loop). A network call might return nothing due to timeouts, not 
+      knowing what happened in the other end
+    * Retrying a call might lead to unexpected results for non idempotent calls if the bit lost was the response from the server
     * Response time in local calls are almost always the same, a network call adds latency to it
     * You can pass references in a local call (pointers), all parameters needs to be encoded in the network call
     * Client and services might be implemented using different languages, with potential data type impedance
 
 ##### Current directions for RPC
 
-The new generation of RPC frameworks is more explicit about the fact that a remote request is different from a local function call, including _
-futures_ to encapsulate asynchronous calls, or streams, which are a series of requests and responses over time. REST seems to be the predominant style
-for public APIs.
+The new generation of RPC frameworks is more explicit about the fact that a remote request is different from a local function call, including
+_futures_ to encapsulate asynchronous calls, or streams, which are a series of requests and responses over time. REST seems to be the predominant
+style for public APIs.
 
 ##### Data encoding and evolution for RPC
 
-Regarding evolvability it is reasonable to assume that all the servers will be updated first, and all the clients second. Thus, you only need backward
-compatibility on requests, and forward compatibility on responses. Compatibility needs to be maintained for a long time, perhaps indefinitely. For
-RESTful APIs, common approaches are to use a version number in the URL or in the HTTP Accept header.
+Regarding evolvability, it is reasonable to assume that all the servers will be updated first, and all the clients second. Thus, you only need
+backward compatibility on requests, and forward compatibility on responses. Compatibility needs to be maintained for a long time, perhaps
+indefinitely. For RESTful APIs, common approaches are to use a version number in the URL or in the HTTP Accept header.
 
 #### Message-Passing Dataflow
 
@@ -698,7 +687,7 @@ consumed by the sender of the original message. Message brokers typically don't 
 
 The actor model is a programming model for concurrency in a single process. The logic is encapsulated in the actors, which might have some local
 non-shared state, and communicates with other actors by sending and receiving asynchronous messages, with message delivery not guaranteed. A
-distributed actor framework essentially integrates a message broker and the actor programming model into a single framework.
+distributed actor framework essentially integrates a message broker, and the actor programming model into a single framework.
 
 ## Chapter 5: Replication<a name="Chapter5"></a>
 
